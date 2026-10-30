@@ -44,11 +44,17 @@ def main():
           '数学错题本-原创配乐.wav':'演示资料/原创配乐.wav',
           '演示视频-制作素材.zip':'演示资料/视频制作素材.zip',
           '演示视频-说明.txt':'演示资料/视频说明.txt'}
+        if (media/'数学错题本-参赛作品介绍.pdf').is_file():
+            copies['数学错题本-参赛作品介绍.pdf']='作品介绍.pdf'
         for src,dst in copies.items():
             target=package/dst;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(media/src,target)
         (package/'开始评审.md').write_text('''# 数学错题本 · 参赛作品
 
 欢迎评审。本包包含可运行源码、实际 Git 仓库及演示资料；不是只有视频或设计稿。
+
+在线体验入口：math.dogeeer.cn 。测试账号：test；密码：12345678。测试号已准备独立的题目、图片、解析、复习和 AI 对话资料，保持普通用户权限。
+
+如包内有 `作品介绍.pdf`，可先阅读其中的项目说明、操作方法、亮点、AI 测试落地、关键技术、界面图片和发表 / 获奖情况。
 
 1. 先看 `演示资料/手机完整功能演示.mp4`：2 分 36 秒，1080×1920、60 帧，含原创配乐、中文字幕、用户端与管理端功能。
 2. 读 `源码/submission/参赛作品说明.md` 和 `技术实现.md`，了解功能、实现与边界。
