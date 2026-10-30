@@ -7,7 +7,7 @@ bad=[]
 key=re.compile(rb'(?:sk-(?:proj-|or-v1-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)')
 for name in filter(None,names):
     path=PurePosixPath(name); base=path.name.lower()
-    protected=any(p in {'data','uploads','backups','logs','releases','.venv','__pycache__'} or p.endswith('-data') for p in path.parts)
+    protected=any(p in {'data','uploads','backups','logs','releases','caddy','.venv','__pycache__'} or p.endswith('-data') for p in path.parts)
     protected=protected or (base.startswith('.env') and base!='.env.example') or base in {'secret_key','ai_key','admin_password.txt','initial_code.txt','nul'} or base.startswith('caddyfile') or bool(re.search(r'\.(?:db(?:-.*)?|sqlite\w*|pem|key|p12|zip|tar\.gz)$',base))
     if protected:
         bad.append(name+' (protected path)');continue
