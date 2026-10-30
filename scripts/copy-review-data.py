@@ -9,6 +9,12 @@ from zoneinfo import ZoneInfo
 
 def clone(data_dir,source_name,target_name,password,apply=False):
     db=sqlite3.connect(data_dir/'math.db',timeout=30);db.row_factory=sqlite3.Row
+    try:
+        return _clone(db,data_dir,source_name,target_name,password,apply)
+    finally:
+        db.close()
+
+def _clone(db,data_dir,source_name,target_name,password,apply):
     db.execute('PRAGMA foreign_keys=ON');db.execute('PRAGMA busy_timeout=30000')
     source=db.execute('SELECT * FROM users WHERE username=? COLLATE NOCASE',(source_name,)).fetchone()
     target=db.execute('SELECT * FROM users WHERE username=? COLLATE NOCASE',(target_name,)).fetchone()
