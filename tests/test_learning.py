@@ -23,7 +23,7 @@ class LearningTests(unittest.TestCase):
         eid=app.insert_entry(self.db,app.build_entry_payload(payload),self.uid)
         self.db.commit()
         return eid
-    def test_manual_solution_cannot_opt_out_of_auto_analysis(self):
+    def test_manual_solution_still_gets_organization(self):
         eid=self.entry()
         with patch.object(app.AI_EXECUTOR,'submit') as submit:
             app.maybe_start_ai(eid)
@@ -40,6 +40,55 @@ class LearningTests(unittest.TestCase):
         row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
         self.assertEqual((row['title'],row['chapter'],row['ai_status'],row['solution']),('导数计算','一元函数微分学','done','手写解析'))
         self.assertEqual(json.loads(row['tags']),['导数与微分'])
+        self.assertEqual((row['ai_answer'],row['ai_solution']),('',''))
+    def test_metadata_only_accepts_four_fields_and_discards_unwanted_solutions(self):
+        response={'title':'导数计算','chapter':'一元函数微分学','knowledge_points':['导数与微分'],'ocr_text':''}
+        parsed=app.parse_analysis_json(json.dumps(response,ensure_ascii=False),'analysis',False,metadata_only=True)
+        self.assertEqual((parsed['answer'],parsed['solution']),('',''))
+        response.update(answer='不应使用的答案',solution='不应使用的解析')
+        parsed=app.parse_analysis_json(json.dumps(response,ensure_ascii=False),'analysis',False,metadata_only=True)
+        self.assertEqual((parsed['answer'],parsed['solution']),('',''))
+    def test_manual_solution_prompt_does_not_request_or_include_solution(self):
+        eid=self.entry(solution='这是用户的私有解析内容')
+        row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
+        response={**RESULT,'knowledge_points':['导数与微分']}
+        with patch.object(app,'call_ai',return_value=(json.dumps(response,ensure_ascii=False),'model',{})) as call:
+            result,_=app.do_solve(row,app.get_ai_config(self.db))
+        messages=call.call_args.args[1]
+        self.assertIn('禁止解题',messages[0]['content'])
+        self.assertNotIn('这是用户的私有解析内容',json.dumps(messages,ensure_ascii=False))
+        self.assertEqual(result['solution'],'')
+    def test_uploaded_solution_image_hides_historical_ai_solution(self):
+        out=io.BytesIO();Image.new('RGB',(20,20),'white').save(out,format='PNG')
+        image='data:image/png;base64,'+base64.b64encode(out.getvalue()).decode()
+        eid=self.entry(solution='',attachments=[{'data':image,'kind':'solution','name':'solution.png'}])
+        self.db.execute("UPDATE entries SET ai_answer='旧AI答案',ai_solution='旧AI解析' WHERE id=?",(eid,));self.db.commit()
+        row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
+        self.assertTrue(app.has_provided_solution(row))
+        entry=app.row_to_entry(row)
+        self.assertTrue(entry['manual_has_solution'])
+        self.assertEqual((entry['ai_task'],entry['solution'],entry['ai_solution'],entry['answer']),('organize','','',''))
+    def test_adding_manual_solution_invalidates_inflight_generation(self):
+        eid=self.entry(solution='')
+        self.db.execute("UPDATE entries SET ai_job_token='old-job',ai_status='generating' WHERE id=?",(eid,));self.db.commit()
+        client=app.app.test_client()
+        client.post('/api/login',json={'username':'admin','password':'Learning-test-2026'})
+        csrf=client.get('/api/me').json['csrf']
+        with patch.object(app.AI_EXECUTOR,'submit') as submit:
+            response=client.put('/api/entries/'+eid,json={'subject':'analysis','status':'reviewing','problem':'求导数','solution':'自己的解析','attachments':[]},headers={'X-CSRF-Token':csrf})
+        self.assertEqual(response.status_code,200)
+        row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
+        self.assertNotEqual(row['ai_job_token'],'old-job')
+        self.assertEqual(row['ai_status'],'pending')
+        self.assertTrue(app.has_provided_solution(row))
+        submit.assert_called_once()
+    def test_no_provided_solution_still_requests_full_analysis(self):
+        eid=self.entry(solution='')
+        row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
+        with patch.object(app,'call_ai',return_value=(json.dumps({**RESULT,'knowledge_points':['导数与微分']},ensure_ascii=False),'model',{})) as call:
+            result,_=app.do_solve(row,app.get_ai_config(self.db))
+        self.assertIn('请解题',call.call_args.args[1][0]['content'])
+        self.assertTrue(result['solution'])
     def test_late_worker_cannot_overwrite_newer_edit(self):
         eid=self.entry()
         self.db.execute("UPDATE entries SET ai_job_token='old' WHERE id=?",(eid,));self.db.commit()

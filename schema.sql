@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS entries (
     ai_model        TEXT NOT NULL DEFAULT '',
     ai_generated_at TEXT,
     ai_updated_at   TEXT,
+    ai_job_token    TEXT NOT NULL DEFAULT '',
+    ai_metadata_version INTEGER NOT NULL DEFAULT 0,
     occurred_at     TEXT NOT NULL,
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL,

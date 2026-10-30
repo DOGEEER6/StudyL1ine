@@ -48,6 +48,7 @@
     loadSeq: 0,
     selectMode: false,
     selected: new Set(),
+    expanded: new Set(),
     editor: null,
     imageEditing: false,
     detail: null,
@@ -940,6 +941,70 @@
 
   function renderCard(entry) {
     const card = el("article", {
+      class: `entry-card entry-compact${state.selected.has(entry.id) ? " is-selected" : ""}${entry.starred ? " is-starred" : ""}`,
+      dataset: { id: entry.id, subject: entry.subject },
+    });
+    const checkbox = el("input", { type: "checkbox", checked: state.selected.has(entry.id), "aria-label": "选择这道题" });
+    checkbox.addEventListener("change", (event) => { event.stopPropagation(); toggleSelected(entry.id, checkbox.checked); });
+    card.appendChild(el("label", { class: "entry-select" }, checkbox));
+    const top = el("div", { class: "entry-top" },
+      el("span", { class: `chip chip-subject-${entry.subject}`, text: SUBJECT_LABEL[entry.subject] }),
+      el("span", { class: `chip chip-status-${entry.status}`, text: STATUS_LABEL[entry.status] }));
+    if (["pending", "generating"].includes(entry.ai_status)) top.appendChild(el("span", { class: "compact-ai-status", text: "整理中…" }));
+    if (["error", "unconfigured"].includes(entry.ai_status)) top.appendChild(el("button", { class: "text-btn compact-retry", type: "button", "data-action": "ai-retry", text: "处理失败 · 重试" }));
+    top.appendChild(el("button", {
+      class: `star-btn${entry.starred ? " on" : ""}`, type: "button", "data-action": "star",
+      "aria-label": entry.starred ? "取消重点" : "标记为重点", title: entry.starred ? "取消重点" : "标记为重点",
+    }, iconEl("star")));
+    card.appendChild(top);
+    const title = el("span", { class: "entry-title", text: entry.title || "图片题目" });
+    renderMath(title);
+    const images = (entry.attachments || []).filter(a => (a.kind || "problem") === "problem").length;
+    const brief = [entry.chapter || (entry.tags || []).slice(0, 2).join("、") || "章节待整理"];
+    if (images) brief.push(`${images} 张题图`);
+    if (entry.manual_has_solution) brief.push("自带解析");
+    else if (entry.has_solution) brief.push("有解答");
+    const label = el("span", { class: "entry-toggle-label", text: "展开" });
+    const button = el("button", {
+      class: "entry-summary-button", type: "button", "aria-expanded": "false", "aria-controls": `entry-body-${entry.id}`,
+    }, el("span", { class: "entry-summary-copy" }, title, el("span", { class: "entry-summary-line", text: brief.join(" · ") })),
+      el("span", { class: "entry-toggle-mark" }, label, iconEl("arrow-right")));
+    card.appendChild(el("h3", { class: "entry-compact-heading" }, button));
+    const body = el("div", { class: "entry-card-body", id: `entry-body-${entry.id}`, hidden: true });
+    card.appendChild(body);
+    let built = false;
+    function setExpanded(open, returnFocus = false) {
+      if (open && !built) {
+        const full = renderFullCard(entry);
+        for (const child of Array.from(full.children)) {
+          if (!child.matches(".entry-select, .entry-top, .entry-title")) body.appendChild(child);
+        }
+        const collapse = el("button", { class: "btn btn-ghost btn-sm entry-collapse-bottom", type: "button", text: "收起这道题",
+          onclick: (event) => { event.stopPropagation(); setExpanded(false, true); } });
+        body.appendChild(collapse);
+        built = true;
+      }
+      if (open) state.expanded.add(entry.id); else state.expanded.delete(entry.id);
+      body.hidden = !open;
+      card.classList.toggle("is-expanded", open);
+      button.setAttribute("aria-expanded", String(open));
+      label.textContent = open ? "收起" : "展开";
+      if (returnFocus) button.focus();
+    }
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (state.selectMode) toggleSelected(entry.id); else setExpanded(!state.expanded.has(entry.id));
+    });
+    card.addEventListener("click", (event) => {
+      if (event.target.closest("button, a, input, label, .entry-card-body") || window.getSelection()?.toString()) return;
+      if (state.selectMode) toggleSelected(entry.id); else setExpanded(!state.expanded.has(entry.id));
+    });
+    if (state.expanded.has(entry.id)) setExpanded(true);
+    return card;
+  }
+
+  function renderFullCard(entry) {
+    const card = el("article", {
       class: `entry-card${state.selected.has(entry.id) ? " is-selected" : ""}${
         entry.starred ? " is-starred" : ""
       }`,
@@ -994,7 +1059,7 @@
       const pending = ["pending", "generating"].includes(entry.ai_status);
       const notice = el("div", { class: pending ? "ai-pending" : "ai-error" },
         iconEl(pending ? "refresh" : "alert"),
-        el("span", { text: pending ? "正在自动解析并整理知识点…" : entry.ai_error || "自动处理暂未完成" }));
+        el("span", { text: pending ? (entry.manual_has_solution ? "正在识别题目并整理知识点…" : "正在自动解析并整理知识点…") : entry.ai_error || "自动处理暂未完成" }));
       if (!pending) notice.appendChild(el("button", { class: "text-btn", type: "button", "data-action": "ai-retry" }, "重试"));
       card.appendChild(notice);
     }
@@ -1034,7 +1099,7 @@
               "div",
               { class: "ai-pending" },
               el("span", { class: "ai-orbit" }),
-              el("span", { text: "AI 正在补充完整解析…" })
+              el("span", { text: entry.manual_has_solution ? "正在识别题目并整理知识点…" : "AI 正在补充完整解析…" })
             )
           );
         } else if (!entry.solution && entry.ai_status === "error") {
@@ -3374,6 +3439,7 @@
     if (!on) {
       state.selected.clear();
       $$(".entry-card.is-selected").forEach((card) => card.classList.remove("is-selected"));
+      $$(".entry-select input").forEach((input) => { input.checked = false; });
     }
     updateSelectionBar();
   }

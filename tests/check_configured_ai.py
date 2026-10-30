@@ -1,4 +1,4 @@
-"""Two synthetic end-to-end jobs using the server's existing configured provider."""
+"""Synthetic jobs for manual text/image solutions and automatic solving."""
 import os, sys, json, sqlite3, tempfile, base64
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='math-live-ai-test-') as tmp:
     uid=db.execute("SELECT id FROM users WHERE role='admin'").fetchone()['id']
     fixture=root/'tests/auto-ocr-test.png'
     image='data:image/png;base64,'+base64.b64encode(fixture.read_bytes()).decode()
-    examples=[{'subject':'analysis','problem':'计算函数 f(x)=x^3 在 x=2 处的导数，并说明使用的求导法则。','solution':'我算出了 12，想检查。','attachments':[]}, {'subject':'analysis','problem':'','solution':'','attachments':[{'data':image,'kind':'problem','name':'synthetic-test.png'}]}]
+    examples=[{'subject':'analysis','problem':'计算函数 f(x)=x^3 在 x=2 处的导数，并说明使用的求导法则。','solution':'我算出了 12。','attachments':[]}, {'subject':'analysis','problem':'','solution':'','attachments':[{'data':image,'kind':'problem','name':'synthetic-test.png'}]}, {'subject':'analysis','problem':'','solution':'','attachments':[{'data':image,'kind':'problem','name':'synthetic-test.png'},{'data':image,'kind':'solution','name':'provided-solution.png'}]}]
     ids=[]
     for example in examples:
         eid=app.insert_entry(db,app.build_entry_payload({'status':'unsolved',**example}),uid)
@@ -27,7 +27,8 @@ with tempfile.TemporaryDirectory(prefix='math-live-ai-test-') as tmp:
     ok=True
     for index,eid in enumerate(ids):
         row=db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
-        print(json.dumps({'case':'text' if index==0 else 'image','status':row['ai_status'],'title':row['title'],'chapter':row['chapter'],'tags':json.loads(row['tags']),'ocr_chars':len(row['ocr_text']),'answer':row['ai_answer'][:120],'error':row['ai_error']},ensure_ascii=False),flush=True)
+        print(json.dumps({'case':['provided_text_solution','image_without_solution','provided_image_solution'][index],'status':row['ai_status'],'title':row['title'],'chapter':row['chapter'],'tags':json.loads(row['tags']),'ocr_chars':len(row['ocr_text']),'answer':row['ai_answer'][:120],'solution_chars':len(row['ai_solution']),'error':row['ai_error']},ensure_ascii=False),flush=True)
         ok &= row['ai_status']=='done' and row['ai_metadata_version']==1 and bool(row['tags']) and (index==0 or bool(row['ocr_text']))
+        ok &= bool(row['ai_solution']) if index==1 else not row['ai_solution'] and not row['ai_answer']
     db.close()
     if not ok: raise SystemExit(1)

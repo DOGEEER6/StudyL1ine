@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/image-editor.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/learning.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
@@ -389,7 +390,7 @@
                 <span class="switch"></span>
                 <span class="solution-switch-copy">
                   <strong>补充自己的解析</strong>
-                  <small>可选补充，保存后仍会自动 AI 解析与知识点归类</small>
+                  <small>填写或上传解析后，AI 只识别题目和归类；未提供解析时自动生成</small>
                 </span>
               </label>
             </div>
@@ -424,7 +425,7 @@
               </div>
             </div>
 
-            <p class="field-hint"><svg class="icon"><use href="#i-spark"></use></svg><span>保存后自动 AI 解析；图片自动转文字，并整理标题、章节和知识点。</span></p>
+            <p class="field-hint"><svg class="icon"><use href="#i-spark"></use></svg><span>保存后自动整理题干、标题、章节和知识点；没有自带解析时自动补全解析。</span></p>
           </div>
 
           <aside class="editor-side">
