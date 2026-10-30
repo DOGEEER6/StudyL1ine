@@ -27,6 +27,8 @@
   };
   const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
   const DRAFT_KEY = "math-notes:draft:v1";
+  function draftKey() { return `${DRAFT_KEY}:${state.user ? state.user.id : "anonymous"}`; }
+  function storedMode() { try { return localStorage.getItem("math-notes:mode:v1"); } catch { return null; } }
   const MODE_KEY = "math-notes:mode:v1";
   const ANNOUNCEMENT_POPUP_KEY = "math-notes:announcement:popup";
   const ANNOUNCEMENT_BANNER_KEY = "math-notes:announcement:banner";
@@ -39,7 +41,7 @@
     entries: [],
     total: 0,
     stats: null,
-    mode: localStorage.getItem(MODE_KEY) === "practice" ? "practice" : "solutions",
+    mode: storedMode() === "practice" ? "practice" : "solutions",
     filters: { subject: "all", status: "all", q: "", tag: "", due: false },
     sort: "newest",
     loading: false,
@@ -311,6 +313,12 @@
 
   function openDialog(dialog) {
     if (!dialog || dialog.open) return;
+    closeMobileSidebar();
+    if (window.matchMedia("(max-width: 760px)").matches) {
+      const replace = history.state?.mathDialog && !document.querySelector("dialog[open]");
+      history[replace ? "replaceState" : "pushState"]({ ...history.state, mathDialog: dialog.id }, "", location.href);
+      dialog.dataset.historyEntry = "1";
+    }
     if (typeof dialog.showModal === "function") dialog.showModal();
     else dialog.setAttribute("open", "");
     document.body.classList.add("has-dialog");
@@ -431,6 +439,8 @@
     setText($("#dash-ai"), stats.ai_solved || 0);
     setText($("#hero-total"), stats.total || 0);
     setText($("#hero-due"), stats.due || 0);
+    setText($("#mobile-due"), stats.due > 99 ? "99+" : stats.due || 0);
+    $("#mobile-due").hidden = !stats.due;
     setText($("#side-due"), stats.due || 0);
     const aiFoot = $(".hero-ai");
     if (aiFoot) {
@@ -558,6 +568,11 @@
   }
 
   function applyFiltersToUI() {
+    $$("[data-quick-subject]").forEach((btn) => {
+      const active = btn.dataset.quickSubject === state.filters.subject;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", String(active));
+    });
     $$("#subject-filter .side-filter").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.subject === state.filters.subject);
     });
@@ -667,18 +682,19 @@
     if (state.mode !== "solutions") params.set("mode", state.mode);
     const query = params.toString();
     const next = `${location.pathname}${query ? `?${query}` : ""}`;
-    history.replaceState(null, "", next);
+    history.replaceState(history.state, "", next);
   }
 
   function readURL() {
     const params = new URLSearchParams(location.search);
     const subject = params.get("subject");
-    if (subject === "analysis" || subject === "linear") state.filters.subject = subject;
+    state.filters.subject = ["analysis", "linear"].includes(subject) ? subject : "all";
     const status = params.get("status");
-    if (STATUS_ORDER.includes(status)) state.filters.status = status;
+    state.filters.status = STATUS_ORDER.includes(status) ? status : "all";
     state.filters.due = params.get("due") === "1";
     state.filters.tag = params.get("tag") || "";
     state.filters.q = params.get("q") || "";
+    state.sort = "newest";
     const sort = params.get("sort");
     if (["newest", "oldest", "due", "difficulty", "updated"].includes(sort)) state.sort = sort;
     if (params.get("mode") === "practice") state.mode = "practice";
@@ -726,7 +742,7 @@
   function updateCounts() {
     const filtered = hasFilters();
     const count = state.entries.length;
-    setText($("#result-count"), filtered ? `筛选出 ${count} 道 / 共 ${state.total} 道` : `共 ${count} 道题`);
+    setText($("#result-count"), count < state.total ? `已显示 ${count} / ${state.total} 道题` : filtered ? `找到 ${count} 道题` : `共 ${count} 道题`);
     setText($("#end-count"), count);
     $("#timeline-end").hidden = count === 0;
     applyFiltersToUI();
@@ -804,7 +820,7 @@
             "div",
             { class: "month-divider" },
             el("b", { text: monthLabel(occurred) }),
-            el("span", { text: "MONTH" })
+            el("span", { text: "" })
           )
         );
         currentDay = "";
@@ -975,6 +991,7 @@
 
     // Title
     const title = el("h3", { class: "entry-title", text: entry.title || "未命名题目" });
+    renderMath(title);
     title.addEventListener("click", (event) => {
       if (state.selectMode) return;
       event.stopPropagation();
@@ -1727,7 +1744,7 @@
         "div",
         { class: "detail-section-head" },
         iconEl("clock"),
-        el("span", { text: "REVIEW LOG · 复习记录" })
+        el("span", { text: "复习记录" })
       )
     );
     const reviews = entry.reviews || [];
@@ -2157,7 +2174,7 @@
       dirty: false,
     };
 
-    setText($("#editor-eyebrow"), entry ? "EDIT ENTRY" : "NEW ENTRY");
+    setText($("#editor-eyebrow"), entry ? "修改记录" : "录入题目");
     setText($("#editor-title"), entry ? "编辑题目" : "记录一道题");
     setText($("#save-entry").querySelector("span"), entry ? "保存修改" : "保存题目");
 
@@ -2199,7 +2216,7 @@
     }
 
     openDialog(dialog);
-    window.setTimeout(() => {
+    if (!window.matchMedia("(pointer: coarse), (max-width: 760px)").matches) window.setTimeout(() => {
       if (!entry && !$("#f-problem").value) $("#f-problem").focus();
       else $("#f-problem").focus();
     }, 120);
@@ -2496,7 +2513,7 @@
   }
 
   function saveDraft() {
-    if (!state.editor || state.editor.originalId) return;
+    if (!state.editor || state.editor.originalId || state.editor.saving || !state.editor.dirty) return;
     const draft = {
       savedAt: Date.now(),
       subject: state.editor.subject,
@@ -2509,8 +2526,8 @@
       solution: $("#f-solution").value,
     };
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-      showDraftNote("草稿已自动保存");
+      localStorage.setItem(draftKey(), JSON.stringify(draft));
+      showDraftNote("文字草稿已保存，图片需另行保存");
     } catch (err) {
       // Storage may be full; drafts are optional.
     }
@@ -2518,11 +2535,11 @@
 
   function readDraft() {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = localStorage.getItem(draftKey());
       if (!raw) return null;
       const draft = JSON.parse(raw);
       if (!draft || Date.now() - Number(draft.savedAt || 0) > 7 * 86400000) {
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(draftKey());
         return null;
       }
       return draft;
@@ -2545,7 +2562,8 @@
     $("#f-starred").checked = Boolean(draft.starred);
     $("#f-has-solution").checked = Boolean(draft.hasSolution);
     toggleSolutionFields(Boolean(draft.hasSolution));
-    showDraftNote("已恢复上次未保存的草稿");
+    state.editor.dirty = true;
+    showDraftNote("已恢复文字草稿；图片请重新添加");
   }
 
   function showDraftNote(message) {
@@ -2560,8 +2578,7 @@
         style: { marginLeft: "4px" },
       });
       clearButton.addEventListener("click", () => {
-        localStorage.removeItem(DRAFT_KEY);
-        hideDraftNote();
+        clearDraft();
         toast("草稿已清除", "success", 1600);
       });
       note.appendChild(clearButton);
@@ -2573,7 +2590,9 @@
   }
 
   function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    window.clearTimeout(state.draftsTimer);
+    if (state.editor) state.editor.dirty = false;
+    localStorage.removeItem(draftKey());
     hideDraftNote();
   }
 
@@ -2584,6 +2603,7 @@
       toast("请选择图片文件", "error");
       return;
     }
+    const editor = state.editor;
     const total = state.editor.attachments.problem.length + state.editor.attachments.solution.length;
     const room = MAX_ATTACHMENTS - total;
     if (room <= 0) {
@@ -2603,11 +2623,13 @@
       renderAttachments(kind);
       prepareImage(file)
         .then((prepared) => {
+          if (state.editor !== editor) return;
           Object.assign(placeholder, prepared, { loading: false, kind });
           renderAttachments(kind);
           markDirty();
         })
         .catch((err) => {
+          if (state.editor !== editor) return;
           const list = state.editor.attachments[kind];
           const index = list.indexOf(placeholder);
           if (index >= 0) list.splice(index, 1);
@@ -2734,6 +2756,7 @@
       thumb.appendChild(el("span", { class: "dz-name", text: item.name || "图片" }));
       thumbs.appendChild(thumb);
     }
+    const editor = state.editor;
     const total = state.editor.attachments.problem.length + state.editor.attachments.solution.length;
     if (total < MAX_ATTACHMENTS) {
       thumbs.appendChild(
@@ -2820,7 +2843,8 @@
       state.editor.saving = false;
       button.disabled = false;
       label.textContent = oldText;
-      clearDraft();
+      if (!id) clearDraft();
+      else state.editor.dirty = false;
       closeDialog($("#editor-dialog"));
       if (!entry.has_solution && (entry.ai_status === "pending" || entry.ai_status === "generating")) {
         toast("题目已保存，AI 正在生成解答…", "info", 4200);
@@ -3011,8 +3035,10 @@
 
     const head = el("div", { class: "review-head" });
     const headMain = el("div", null);
-    headMain.appendChild(el("div", { class: "review-kicker", text: `REVIEW · ${review.index + 1} / ${review.total}` }));
-    headMain.appendChild(el("h2", { class: "review-title", text: entry.title || "未命名题目" }));
+    headMain.appendChild(el("div", { class: "review-kicker", text: `复习进度 · ${review.index + 1} / ${review.total}` }));
+    const reviewTitle = el("h2", { class: "review-title", text: entry.title || "未命名题目" });
+    renderMath(reviewTitle);
+    headMain.appendChild(reviewTitle);
     head.appendChild(headMain);
     head.appendChild(
       el(
@@ -3113,9 +3139,15 @@
               class: `result-btn${review.result === key ? " active" : ""}`,
               type: "button",
               dataset: { result: key },
+              "aria-pressed": String(review.result === key),
               onclick: () => {
                 review.result = key;
-                renderReview();
+                $$(".result-btn", root).forEach((button) => {
+                  const active = button.dataset.result === key;
+                  button.classList.toggle("active", active);
+                  button.setAttribute("aria-pressed", String(active));
+                });
+                $(".review-foot .btn-primary", root).disabled = false;
               },
             },
             el("strong", { text: meta.label }),
@@ -3532,12 +3564,26 @@
 
   function closeMobileSidebar() {
     if (!window.matchMedia("(max-width: 1020px)").matches) return;
-    document.body.classList.remove("sidebar-open");
-    const scrim = $("#sidebar-scrim");
-    if (scrim) scrim.hidden = true;
+    setSidebarOpen(false);
+  }
+
+  function setSidebarOpen(open) {
+    document.body.classList.toggle("sidebar-open", open);
+    $("#sidebar-scrim").hidden = !open;
+    $("#sidebar").inert = !open && window.matchMedia("(max-width: 1020px)").matches;
+    for (const id of ["#sidebar-toggle", "#filter-toggle"]) {
+      $(id).setAttribute("aria-expanded", String(open));
+      $(id).setAttribute("aria-controls", "sidebar");
+    }
+    if (open) $("#sidebar-close").focus();
   }
 
   function bindFilters() {
+    $$("[data-quick-subject]").forEach((button) => button.addEventListener("click", () => {
+      state.filters.subject = button.dataset.quickSubject;
+      applyFiltersToUI();
+      loadEntries();
+    }));
     $("#subject-filter").addEventListener("click", (event) => {
       const button = event.target.closest("[data-subject]");
       if (!button) return;
@@ -3642,7 +3688,7 @@
       const mode = button.dataset.mode;
       if (mode === state.mode) return;
       state.mode = mode;
-      localStorage.setItem(MODE_KEY, mode);
+      try { localStorage.setItem(MODE_KEY, mode); } catch { /* Optional preference. */ }
       $$("#mode-switch button").forEach((item) => {
         item.classList.toggle("active", item.dataset.mode === mode);
       });
@@ -3660,6 +3706,30 @@
   // ---------------------------------------------------------------------
 
   function bindGlobal() {
+    setSidebarOpen(false);
+    window.matchMedia("(max-width: 1020px)").addEventListener("change", () => setSidebarOpen(false));
+    const syncViewport = () => {
+      const viewport = window.visualViewport;
+      if (!viewport) return;
+      document.documentElement.style.setProperty("--app-viewport-height", `${viewport.height}px`);
+      document.documentElement.style.setProperty("--app-viewport-top", `${viewport.offsetTop}px`);
+    };
+    window.visualViewport?.addEventListener("resize", syncViewport);
+    window.visualViewport?.addEventListener("scroll", syncViewport);
+    syncViewport();
+    $("#sidebar-close").addEventListener("click", closeMobileSidebar);
+    $("#mobile-add").addEventListener("click", () => openEditor());
+    $("#mobile-review").addEventListener("click", startDueReview);
+    $("#mobile-settings").addEventListener("click", openSettings);
+    $("#mobile-home").addEventListener("click", () => {
+      closeMobileSidebar();
+      clearFilters();
+      loadEntries();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) saveDraft();
+    });
     // Delegated close handler: works for static and dynamically rendered
     // [data-close-dialog] buttons, including the settings header ×.
     document.addEventListener("click", (event) => {
@@ -3689,16 +3759,13 @@
     });
     $("#user-chip").addEventListener("click", openSettings);
     $("#sidebar-toggle").addEventListener("click", () => {
-      document.body.classList.toggle("sidebar-open");
-      $("#sidebar-scrim").hidden = !document.body.classList.contains("sidebar-open");
+      setSidebarOpen(!document.body.classList.contains("sidebar-open"));
     });
     $("#sidebar-scrim").addEventListener("click", () => {
-      document.body.classList.remove("sidebar-open");
-      $("#sidebar-scrim").hidden = true;
+      setSidebarOpen(false);
     });
     $("#filter-toggle").addEventListener("click", () => {
-      document.body.classList.toggle("sidebar-open");
-      $("#sidebar-scrim").hidden = !document.body.classList.contains("sidebar-open");
+      setSidebarOpen(!document.body.classList.contains("sidebar-open"));
     });
 
     $("#confirm-cancel").addEventListener("click", () => resolveConfirm(false));
@@ -3729,6 +3796,14 @@
     // Native Esc / close() does not run our helpers, so unlock the page here.
     for (const dialog of $$("dialog")) {
       dialog.addEventListener("close", () => {
+        if (dialog.id === "editor-dialog") {
+          window.clearTimeout(state.draftsTimer);
+          saveDraft();
+        }
+        if (dialog.dataset.historyEntry) {
+          delete dialog.dataset.historyEntry;
+          if (history.state?.mathDialog === dialog.id) history.back();
+        }
         if (!document.querySelector("dialog[open]")) document.body.classList.remove("has-dialog");
         if (dialog.id === "confirm-dialog" && state.confirmResolver) {
           const resolve = state.confirmResolver;
@@ -3742,8 +3817,7 @@
       const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable;
       const anyDialog = document.querySelector("dialog[open]");
       if (event.key === "Escape" && document.body.classList.contains("sidebar-open")) {
-        document.body.classList.remove("sidebar-open");
-        $("#sidebar-scrim").hidden = true;
+        setSidebarOpen(false);
       }
       if (anyDialog) return;
       if (event.key === "/" && !inField) {
@@ -3755,7 +3829,14 @@
       }
     });
 
-    window.addEventListener("popstate", () => {
+    window.addEventListener("popstate", (event) => {
+      const dialogs = $$("dialog[open]");
+      const top = dialogs[dialogs.length - 1];
+      if (top && top.dataset.historyEntry && top.id !== event.state?.mathDialog) {
+        delete top.dataset.historyEntry;
+        closeDialog(top);
+        return;
+      }
       readURL();
       syncFilterInputs();
       applyFiltersToUI();

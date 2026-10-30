@@ -56,7 +56,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 # Paths & constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.7.4"
+APP_VERSION = "1.8.0"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("MATH_DATA_DIR", BASE_DIR / "data")).resolve()
 DB_PATH = DATA_DIR / "math.db"
@@ -2093,7 +2093,7 @@ def api_entries():
 
     ids_raw = request.args.get("ids", "").strip()
     if ids_raw:
-        ids = [v for v in re.split(r"[,;]+", ids_raw) if re.fullmatch(r"[0-9a-f]{32}", v)]
+        ids = [v for v in re.split(r"[,;]+", ids_raw) if re.fullmatch(r"[0-9a-f]{32}", v)][:200]
         if not ids:
             return jsonify(entries=[], total=0)
         clauses.append("id IN (" + ",".join("?" for _ in ids) + ")")

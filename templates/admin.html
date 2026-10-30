@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f5f2">
+  <meta name="theme-color" content="#f7f8f5">
   <meta name="robots" content="noindex,nofollow">
   <title>管理后台 · Mathline</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
 </head>
 <body class="admin-page minimal-admin">
   {% include 'icons.html' %}

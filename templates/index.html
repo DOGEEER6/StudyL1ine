@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f5f2">
+  <meta name="theme-color" content="#f7f8f5">
   <meta name="robots" content="noindex,nofollow">
-  <title>Mathline · 工科数学分析 / 线性代数错题时间线</title>
+  <title>数学错题本</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
@@ -21,14 +22,14 @@
       </button>
       <a class="brand" href="/" aria-label="Mathline 首页">
         <span class="brand-mark">∫</span>
-        <span class="brand-text"><strong>数学错题本</strong><small>Mathline · 工科数学分析 × 线性代数</small></span>
+        <span class="brand-text"><strong>数学错题本</strong><small>数学分析 / 线性代数</small></span>
       </a>
     </div>
     <nav class="topbar-nav" aria-label="主导航">
-      <a class="nav-link active" href="/">时间线</a>
+      <a class="nav-link active" href="/">错题本</a>
       <button class="nav-link" id="nav-review" type="button">复习</button>
       <a class="nav-link" href="#knowledge">知识点</a>
-      <a class="nav-link" href="/admin" data-admin-only>AI 管理</a>
+      <a class="nav-link" href="/admin" data-admin-only>管理</a>
     </nav>
     <div class="topbar-actions">
       <button class="user-chip" id="user-chip" type="button" title="账号设置">
@@ -49,7 +50,7 @@
 
   <div class="site-announcement" id="site-announcement" hidden>
     <div class="site-announcement-inner">
-      <span class="announcement-mark">NOTICE</span>
+      <span class="announcement-mark">公告</span>
       <p id="site-announcement-text"></p>
       <button class="announcement-close" id="announcement-dismiss" type="button" aria-label="关闭公告">
         <svg class="icon"><use href="#i-x"></use></svg>
@@ -60,6 +61,7 @@
   <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="筛选与统计">
       <div class="sidebar-scroll">
+        <div class="filter-sheet-head"><strong>筛选与统计</strong><button class="icon-btn" id="sidebar-close" type="button" aria-label="关闭筛选"><svg class="icon"><use href="#i-x"></use></svg></button></div>
         <section class="side-card overview-card">
           <div class="side-head">
             <span>学习总览</span>
@@ -89,7 +91,7 @@
 
           <div class="due-panel" id="due-panel" role="button" tabindex="0">
             <div class="due-copy">
-              <span class="due-kicker">REVIEW QUEUE</span>
+              <span class="due-kicker">今日复习</span>
               <strong id="due-title">今天没有待复习</strong>
               <small id="due-sub">按遗忘曲线，到期会自动出现在这里</small>
             </div>
@@ -176,9 +178,9 @@
     <main class="main-col">
       <div class="page-intro">
         <div class="page-intro-copy">
-          <p class="eyebrow">STUDY LOG · 错题与难题</p>
-          <h1>题目时间线</h1>
-          <p class="intro-note">工科数学分析 × 线性代数。原题、错因、解答与复习节奏，按记录日期排在这里。</p>
+          <p class="eyebrow">我的学习记录</p>
+          <h1>我的错题本</h1>
+          <p class="intro-note">记下卡住的地方，下次再做一遍。</p>
         </div>
         <div class="quick-panel">
           <div class="quick-actions">
@@ -190,7 +192,7 @@
             </button>
           </div>
           <div class="quick-meta">
-            <span><b id="hero-total">0</b> 道题在时间线里</span>
+            <span><b id="hero-total">0</b> 道已记录</span>
             <span>·</span>
             <span><b id="hero-due">0</b> 道待复习</span>
             <span>·</span>
@@ -199,14 +201,19 @@
         </div>
       </div>
 
+      <div class="subject-tabs" role="group" aria-label="选择学科">
+        <button type="button" data-quick-subject="all" class="active" aria-pressed="true">全部题目</button>
+        <button type="button" data-quick-subject="analysis" aria-pressed="false">数学分析</button>
+        <button type="button" data-quick-subject="linear" aria-pressed="false">线性代数</button>
+      </div>
       <div class="toolbar">
         <div class="toolbar-main">
           <div class="view-switch" id="mode-switch" role="group" aria-label="解答显示模式">
             <button type="button" data-mode="solutions" class="active">
-              <svg class="icon"><use href="#i-eye"></use></svg><span>含解答</span>
+              <svg class="icon"><use href="#i-eye"></use></svg><span>查看解答</span>
             </button>
             <button type="button" data-mode="practice">
-              <svg class="icon"><use href="#i-eye-off"></use></svg><span>无解答 · 练习</span>
+              <svg class="icon"><use href="#i-eye-off"></use></svg><span>自己练习</span>
             </button>
           </div>
           <div class="toolbar-tools">
@@ -260,10 +267,17 @@
         <svg class="icon"><use href="#i-printer"></use></svg><span>无解答练习卷</span>
       </button>
       <button class="btn btn-primary btn-sm" id="print-selected-solutions" type="button">
-        <svg class="icon"><use href="#i-printer"></use></svg><span>含解答</span>
+        <svg class="icon"><use href="#i-printer"></use></svg><span>查看解答</span>
       </button>
     </div>
   </div>
+
+  <nav class="mobile-tabbar" aria-label="底部导航">
+    <button type="button" id="mobile-home" aria-current="page"><svg class="icon"><use href="#i-book"></use></svg><span>错题本</span></button>
+    <button type="button" id="mobile-review"><span class="tab-icon"><svg class="icon"><use href="#i-refresh"></use></svg><b id="mobile-due" hidden>0</b></span><span>复习</span></button>
+    <button type="button" id="mobile-add"><svg class="icon"><use href="#i-plus"></use></svg><span>记一题</span></button>
+    <button type="button" id="mobile-settings"><svg class="icon"><use href="#i-settings"></use></svg><span>我的</span></button>
+  </nav>
 
   <dialog class="modal detail-modal" id="detail-dialog">
     <div class="modal-card detail-card"><div id="detail-content"></div></div>
@@ -297,7 +311,7 @@
     <form class="modal-card editor-card" id="entry-form" novalidate>
       <header class="modal-head">
         <div>
-          <p class="eyebrow" id="editor-eyebrow">NEW ENTRY</p>
+          <p class="eyebrow" id="editor-eyebrow">录入题目</p>
           <h2 id="editor-title">记录一道题</h2>
         </div>
         <button class="icon-btn" type="button" data-close-dialog aria-label="关闭">
@@ -461,7 +475,7 @@
   <dialog class="modal settings-modal" id="settings-dialog">
     <div class="modal-card settings-card">
       <header class="modal-head">
-        <div><p class="eyebrow">SETTINGS</p><h2>设置</h2></div>
+        <div><p class="eyebrow">账号与数据</p><h2>设置</h2></div>
         <button class="icon-btn" type="button" data-close-dialog aria-label="关闭">
           <svg class="icon"><use href="#i-x"></use></svg>
         </button>

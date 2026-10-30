@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f5f2">
+  <meta name="theme-color" content="#f7f8f5">
   <meta name="robots" content="noindex,nofollow">
   <title>登录 · Mathline 数学错题本</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
 </head>
 <body class="auth-page minimal-auth" data-next="{{ next_url }}">
   {% include 'icons.html' %}
@@ -18,16 +19,16 @@
       <span class="brand-mark">∫</span>
       <span class="brand-text"><strong>数学错题本</strong><small>Mathline · math.dogeeer.cn</small></span>
     </a>
-    <span class="auth-topbar-note">PRIVATE STUDY SPACE</span>
+    <span class="auth-topbar-note">数学分析 / 线性代数</span>
   </header>
 
   <main class="auth-shell">
     <section class="auth-copy">
-      <p class="hero-kicker"><span class="live-dot"></span> ENGINEERING MATH · NOTES</p>
-      <h1>把不会的题，<br>变成<span class="text-gradient">会做</span>的题。</h1>
-      <p class="auth-lede">工科数学分析 × 线性代数。原题、错因、解答与复习节奏，收在一条清晰的时间线上。</p>
-      <p class="auth-lede">没写解答的题，AI 会自动补上；想追问时，随时和它聊聊这道题。</p>
-      <ul class="auth-points">
+      <p class="hero-kicker">一本给自己用的数学笔记</p>
+      <h1>这次没做对，<br>下次再试试。</h1>
+      <p class="auth-lede">收好每一道错题，记下思路，按时回来复习。</p>
+      <div class="notebook-sample" aria-hidden="true"><span>数学分析 · 复习笔记</span><p>先想清楚为什么，<br>再记住怎么做。</p><div>∫ &nbsp; f(x) dx</div><small>原题 / 思路 / 解答</small></div>
+      <ul class="auth-points" hidden>
         <li><span>01</span><strong>原题留档</strong><small>文字与图片，公式不乱码</small></li>
         <li><span>02</span><strong>含解答 / 无解答</strong><small>练习时藏起答案，复盘时展开</small></li>
         <li><span>03</span><strong>AI 自动解析</strong><small>没写解答的题，自动补全并可追问</small></li>
@@ -50,7 +51,7 @@
             </div>
           </div>
           <label class="auth-label" for="login-username">用户名</label>
-          <input class="auth-input" id="login-username" type="text" autocomplete="username" placeholder="输入用户名" maxlength="24" autofocus>
+          <input class="auth-input" id="login-username" type="text" autocomplete="username" placeholder="输入用户名" maxlength="24">
           <label class="auth-label" for="login-password">密码</label>
           <div class="auth-input-wrap">
             <input class="auth-input" id="login-password" type="password" autocomplete="current-password" placeholder="输入密码" maxlength="128">
@@ -97,7 +98,7 @@
 
         <div class="auth-hint">
           <svg class="icon"><use href="#i-lightbulb"></use></svg>
-          <span>管理员账号由服务器初始化；普通用户可直接注册。密码只保存为哈希。</span>
+          <span>首次使用需要邀请码，可向管理员获取。</span>
         </div>
       </div>
       <p class="auth-meta">Mathline v{{ app_version }} · 仅限授权访问</p>
