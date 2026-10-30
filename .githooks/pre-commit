@@ -1,8 +1,13 @@
 #!/bin/sh
 if [ -x .venv/bin/python ]; then
   exec .venv/bin/python scripts/check-staged.py
-elif command -v python3 >/dev/null 2>&1; then
+elif [ -x .venv/Scripts/python.exe ]; then
+  exec .venv/Scripts/python.exe scripts/check-staged.py
+elif command -v python >/dev/null 2>&1 && python -c 'import sys; sys.exit(sys.version_info.major < 3)' >/dev/null 2>&1; then
+  exec python scripts/check-staged.py
+elif command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(sys.version_info.major < 3)' >/dev/null 2>&1; then
   exec python3 scripts/check-staged.py
 else
-  exec python scripts/check-staged.py
+  echo 'Python 3 is required to check staged files.' >&2
+  exit 1
 fi
