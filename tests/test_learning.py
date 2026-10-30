@@ -49,6 +49,15 @@ class LearningTests(unittest.TestCase):
         with patch.object(app,'do_solve',side_effect=new_edit): app.ai_solve_worker(eid,'old')
         row=self.db.execute('SELECT * FROM entries WHERE id=?',(eid,)).fetchone()
         self.assertEqual((row['title'],row['ai_status'],row['ai_metadata_version']),('新题','pending',0))
+    def test_blank_output_retries_once_and_reserves_quota(self):
+        eid=self.entry()
+        self.db.execute("UPDATE entries SET ai_job_token='job' WHERE id=?",(eid,));self.db.commit()
+        with patch.object(app,'do_solve',side_effect=[app.AIError('AI 返回了空内容'),(RESULT,'model')]) as solve:
+            app.ai_solve_worker(eid,'job')
+        self.assertEqual(solve.call_count,2)
+        self.assertTrue(solve.call_args.args[1]['disable_thinking'])
+        self.assertEqual(self.db.execute('SELECT ai_status FROM entries WHERE id=?',(eid,)).fetchone()[0],'done')
+        self.assertEqual(self.db.execute("SELECT count(*) FROM ai_usage WHERE kind='solve_retry'").fetchone()[0],1)
     def test_image_with_typed_text_still_gets_ocr(self):
         out=io.BytesIO();Image.new('RGB',(20,20),'white').save(out,format='PNG')
         image='data:image/png;base64,'+base64.b64encode(out.getvalue()).decode()

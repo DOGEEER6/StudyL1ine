@@ -58,7 +58,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 # Paths & constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("MATH_DATA_DIR", BASE_DIR / "data")).resolve()
 DB_PATH = DATA_DIR / "math.db"
@@ -1080,9 +1080,9 @@ def get_ai_config(db: sqlite3.Connection) -> dict:
     except ValueError:
         temperature = 0.2
     try:
-        max_tokens = int(get_setting(db, "ai_max_tokens", "2400"))
+        max_tokens = int(get_setting(db, "ai_max_tokens", "4096"))
     except ValueError:
-        max_tokens = 2400
+        max_tokens = 4096
     base_url = get_setting(db, "ai_base_url", AI_DEFAULT_BASE).strip() or AI_DEFAULT_BASE
     model = get_setting(db, "ai_model", AI_DEFAULT_MODEL).strip() or AI_DEFAULT_MODEL
     vision_model = get_setting(db, "ai_vision_model", "").strip()
@@ -1194,6 +1194,12 @@ def call_ai(config: dict, messages: list[dict], model: str | None = None) -> tup
         "max_tokens": config.get("max_tokens", 2400),
         "stream": False,
     }
+    if config.get("structured_output") and any(name in payload["model"].lower() for name in ("deepseek-flash", "deepseek-v4")):
+        payload["response_format"] = {"type": "json_object"}
+        if config.get("disable_thinking"):
+            payload["thinking"] = {"type": "disabled"}
+        else:
+            payload["reasoning_effort"] = "low"
     req = urllib.request.Request(
         endpoint,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -1243,6 +1249,8 @@ def call_ai(config: dict, messages: list[dict], model: str | None = None) -> tup
                 parts.append(part)
         content = "\n".join(parts)
     if not isinstance(content, str) or not content.strip():
+        if data["choices"][0].get("finish_reason") == "length":
+            raise AIError("AI 输出达到长度上限，未生成完整解析")
         raise AIError("AI 返回了空内容")
     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
     usage["elapsed_ms"] = int((time.time() - started) * 1000)
@@ -1504,7 +1512,7 @@ def do_solve(row: sqlite3.Row, config: dict) -> tuple[dict, str]:
     if row["solution"]:
         parts.append("用户补充的解析（仅供参考，请独立检查）：" + str(row["solution"])[:4000])
     messages = [{"role": "system", "content": system}, {"role": "user", "content": image_content(parts, urls)}]
-    text, model, _usage = call_ai(config, messages, (config.get("vision_model") or config.get("model")) if urls else config.get("model"))
+    text, model, _usage = call_ai({**config, "structured_output": True}, messages, (config.get("vision_model") or config.get("model")) if urls else config.get("model"))
     return parse_analysis_json(text, row["subject"], bool(urls)), model
 
 
@@ -1543,7 +1551,21 @@ def ai_solve_worker(entry_id: str, job_token: str) -> None:
                 return
             set_ai_state(db,entry_id,"generating",job_token=job_token)
             db.commit()
-            result, model = do_solve(row,config)
+            for attempt in range(2):
+                try:
+                    result, model = do_solve(row,config)
+                    break
+                except AIError as exc:
+                    retryable = any(message in str(exc) for message in ("空内容", "返回格式不完整", "未返回完整", "长度上限"))
+                    if attempt or not retryable:
+                        raise
+                    if not db.execute("SELECT 1 FROM entries WHERE id=? AND ai_job_token=?",(entry_id,job_token)).fetchone():
+                        return
+                    try:
+                        check_ai_quota(db,row["user_id"],"solve_retry",entry_id,enforce_interval=False)
+                    except ApiError as quota_error:
+                        raise AIError(quota_error.message) from quota_error
+                    config = {**config, "disable_thinking": True}
             # A newer edit gets a different token; late results must never overwrite it.
             db.execute(
                 "UPDATE entries SET title=?,chapter=?,tags=?,ai_answer=?,ai_solution=?,ai_model=?,"
