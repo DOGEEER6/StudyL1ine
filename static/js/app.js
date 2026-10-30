@@ -788,7 +788,7 @@
       }
       renderTimeline();
       scheduleAiPoll();
-      toast("AI 正在重新生成解析", "info");
+      toast(data.entry?.manual_has_solution ? "正在重新识别题目并整理知识点" : "AI 正在重新生成解析", "info");
     } catch (err) {
       handleError(err);
     }
@@ -1752,7 +1752,7 @@
             "div",
             { class: "ai-pending" },
             el("span", { class: "ai-orbit" }),
-            el("span", { text: "AI 正在补充完整解析，完成后会自动出现。" })
+            el("span", { text: entry.manual_has_solution ? "正在识别题目并整理知识点，完成后会自动更新。" : "AI 正在补充完整解析，完成后会自动出现。" })
           )
         );
       } else if (!entry.solution && entry.ai_status === "error") {

@@ -42,9 +42,10 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(json.loads(row['tags']),['导数与微分'])
         self.assertEqual((row['ai_answer'],row['ai_solution']),('',''))
     def test_metadata_only_accepts_four_fields_and_discards_unwanted_solutions(self):
-        response={'title':'导数计算','chapter':'一元函数微分学','knowledge_points':['导数与微分'],'ocr_text':''}
+        response={'title':'导数计算','chapter':'一元函数微分学','knowledge_points':['导数与微分'],'ocr_text':'没有图片时不应记录的识别内容'}
         parsed=app.parse_analysis_json(json.dumps(response,ensure_ascii=False),'analysis',False,metadata_only=True)
         self.assertEqual((parsed['answer'],parsed['solution']),('',''))
+        self.assertEqual(parsed['ocr_text'],'')
         response.update(answer='不应使用的答案',solution='不应使用的解析')
         parsed=app.parse_analysis_json(json.dumps(response,ensure_ascii=False),'analysis',False,metadata_only=True)
         self.assertEqual((parsed['answer'],parsed['solution']),('',''))

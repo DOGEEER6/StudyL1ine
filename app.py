@@ -58,7 +58,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 # Paths & constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.1.1"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("MATH_DATA_DIR", BASE_DIR / "data")).resolve()
 DB_PATH = DATA_DIR / "math.db"
@@ -1483,7 +1483,7 @@ def parse_analysis_json(text: str, subject: str, needs_ocr: bool, metadata_only:
     tags = parse_tags(result.get("knowledge_points", result.get("tags", [])))[:4]
     chapter = str(result.get("chapter") or "").strip()[:100]
     solution = normalize_latex(str(result.get("solution") or "").strip())[:MAX_TEXT]
-    ocr = normalize_latex(str(result.get("ocr_text") or "").strip())[:MAX_TEXT]
+    ocr = normalize_latex(str(result.get("ocr_text") or "").strip())[:MAX_TEXT] if needs_ocr else ""
     if not tags or not chapter or (not metadata_only and not solution):
         raise AIError("AI 未返回完整的题目信息，请重试")
     if needs_ocr and not ocr:
