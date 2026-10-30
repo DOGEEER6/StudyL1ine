@@ -80,8 +80,7 @@
 
   function subjectSummary(entries) {
     const subjects = new Set(entries.map((entry) => entry.subject));
-    if (subjects.size === 1) return SUBJECT_LABEL[Array.from(subjects)[0]] || "数学";
-    return "工科数学分析 / 线性代数";
+    return [...new Set(entries.map(entry => entry.subject_label || SUBJECT_LABEL[entry.subject] || "未命名科目"))].join(" / ");
   }
 
   function buildHeader(entries) {
@@ -119,7 +118,7 @@
     head.appendChild(
       el("span", {
         class: `q-subject ${entry.subject}`,
-        text: SUBJECT_LABEL[entry.subject] || "数学",
+        text: entry.subject_label || SUBJECT_LABEL[entry.subject] || "未命名科目",
       })
     );
     const source = [entry.source, entry.chapter, entry.source_detail].filter(Boolean).join(" · ");

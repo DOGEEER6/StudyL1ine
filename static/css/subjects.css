@@ -1,0 +1,28 @@
+/* Account subject management and long, horizontally scrollable mobile tabs. */
+.subject-manager { display:grid; gap:0; margin-top:12px; border:1px solid #dbe7f3; border-radius:12px; overflow:hidden; }
+.subject-row { display:flex; align-items:center; gap:10px; padding:10px 12px; min-height:56px; background:#fff; }
+.subject-row + .subject-row { border-top:1px solid #e8eff7; }
+.subject-row > .subject-name { flex:1; min-width:0; overflow-wrap:anywhere; color:#20354a; font-weight:600; }
+.subject-row .btn { flex-shrink:0; min-height:40px; }
+.subject-edit-row input { width:0; flex:1; min-width:0; min-height:42px; padding:8px 10px; border:1px solid #a9cbed; border-radius:8px; font:inherit; font-size:16px; }
+.subject-add-form { display:flex; gap:10px; align-items:flex-end; margin-top:16px; }
+.subject-add-form .form-field { flex:1; min-width:0; }
+.subject-add-form .btn { min-height:44px; flex-shrink:0; }
+.subject-add-form input { font-size:16px; }
+.subject-message { color:#2569b8; font-size:13px; line-height:1.6; margin-top:10px; min-height:21px; }
+.subject-message.error { color:#ad4336; }
+.subject-tabs,.knowledge-subjects { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; scrollbar-width:thin; }
+.subject-tabs button,.knowledge-subjects button { flex:0 0 auto; white-space:nowrap; }
+.knowledge-subjects { min-width:0; }
+.side-filter .subject-name { flex:1; min-width:0; overflow-wrap:anywhere; }
+.stat-cell span { overflow-wrap:anywhere; }
+.entry-card [class*="chip-subject-s_"] { background:#e5f1ff; color:#2168bd; }
+#subject-chips .choice-chip { max-width:100%; overflow-wrap:anywhere; white-space:normal; }
+.entry-card [class*="chip-subject-"],.detail-dialog [class*="chip-subject-"] { max-width:100%; overflow-wrap:anywhere; white-space:normal; }
+.learning-subjects span { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:760px) {
+  .subject-tabs { display:flex; width:100%; }
+  .knowledge-subjects button { flex:0 0 auto; min-width:72px; }
+  .subject-row { gap:6px; padding:9px 10px; }
+  .subject-edit-row .btn { padding-left:10px; padding-right:10px; }
+}

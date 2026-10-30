@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/image-editor.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/learning.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/subjects.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
@@ -25,7 +26,7 @@
       </button>
       <a class="brand" href="/" aria-label="Mathline 首页">
         <span class="brand-mark">∫</span>
-        <span class="brand-text"><strong>数学错题本</strong><small>数学分析 / 线性代数</small></span>
+        <span class="brand-text"><strong>数学错题本</strong><small>记录 · 复习 · 掌握</small></span>
       </a>
     </div>
     <nav class="topbar-nav" aria-label="主导航">
@@ -485,6 +486,17 @@
         </button>
       </header>
       <div class="modal-body settings-body">
+        <section class="settings-section subject-settings" aria-labelledby="subject-settings-title">
+          <h3 id="subject-settings-title">科目管理</h3>
+          <p class="settings-note">设置你正在学的科目。改名后，已有题目会同步显示新名称。</p>
+          <div id="subject-manager" class="subject-manager"></div>
+          <form id="subject-add-form" class="subject-add-form">
+            <label class="form-field"><span>新增科目</span><input id="subject-new-name" type="text" maxlength="24" required placeholder="例如：概率论、大学物理" autocomplete="off"></label>
+            <button class="btn btn-primary" type="submit">添加</button>
+          </form>
+          <p id="subject-message" class="subject-message" role="status" aria-live="polite"></p>
+        </section>
+
         <section class="settings-section">
           <h3>账号</h3>
           <p class="settings-note">当前登录：<strong id="account-name">—</strong> · <span id="account-role">用户</span></p>

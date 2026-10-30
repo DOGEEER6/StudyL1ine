@@ -11,7 +11,7 @@
   // ---------------------------------------------------------------------
 
   const SUBJECT_LABEL = { analysis: "工科数学分析", linear: "线性代数" };
-  const SUBJECT_SHORT = { analysis: "数分", linear: "线代" };
+
   const STATUS_LABEL = {
     unsolved: "不会",
     wrong: "错题",
@@ -38,6 +38,7 @@
   const state = {
     csrf: null,
     user: null,
+    subjects: Object.entries(SUBJECT_LABEL).map(([id, name]) => ({id, name})),
     entries: [],
     total: 0,
     stats: null,
@@ -435,6 +436,10 @@
     setText($("#sf-all"), stats.total || 0);
     setText($("#sf-analysis"), (stats.by_subject && stats.by_subject.analysis) || 0);
     setText($("#sf-linear"), (stats.by_subject && stats.by_subject.linear) || 0);
+    state.subjects.forEach(subject => {
+      setText($(`[data-subject-count="${subject.id}"]`), stats.by_subject?.[subject.id] || 0);
+      setText($(`[data-stat="${subject.id}"] strong`), stats.by_subject?.[subject.id] || 0);
+    });
     setText($("#intro-count"), stats.total || 0);
     setText($("#dash-total"), stats.total || 0);
     setText($("#dash-due"), stats.due || 0);
@@ -690,7 +695,7 @@
   function readURL() {
     const params = new URLSearchParams(location.search);
     const subject = params.get("subject");
-    state.filters.subject = ["analysis", "linear"].includes(subject) ? subject : "all";
+    state.filters.subject = /^(analysis|linear|s_[0-9a-f]{32})$/.test(subject || "") ? subject : "all";
     const status = params.get("status");
     state.filters.status = STATUS_ORDER.includes(status) ? status : "all";
     state.filters.due = params.get("due") === "1";
@@ -2629,7 +2634,7 @@
 
   function restoreDraft(draft) {
     if (!state.editor || state.editor.originalId) return;
-    state.editor.subject = draft.subject || state.editor.subject;
+    state.editor.subject = SUBJECT_LABEL[draft.subject] ? draft.subject : state.editor.subject;
     state.editor.status = draft.status || state.editor.status;
     state.editor.difficulty = Number(draft.difficulty) || 3;
     setChips("subject-chips", state.editor.subject);
@@ -3531,10 +3536,81 @@
   // Settings, export, import, backup
   // ---------------------------------------------------------------------
 
+  function renderSubjects(subjects) {
+    if (!Array.isArray(subjects) || !subjects.length) return;
+    state.subjects = subjects;
+    Object.keys(SUBJECT_LABEL).forEach(key => delete SUBJECT_LABEL[key]);
+    subjects.forEach(s => { SUBJECT_LABEL[s.id] = s.name; });
+    if (state.filters.subject !== "all" && !SUBJECT_LABEL[state.filters.subject]) state.filters.subject = "all";
+    const tabs = $(".subject-tabs"), sidebar = $("#subject-filter"), chips = $("#subject-chips"), stats = $(".stat-grid");
+    tabs.replaceChildren(el("button", {type:"button", dataset:{quickSubject:"all"}, text:"全部题目"}));
+    sidebar.replaceChildren(el("button", {class:"side-filter", type:"button", dataset:{subject:"all"}},
+      el("span",{class:"sf-dot dot-all"}),el("span",{text:"全部"}),el("em",{id:"sf-all",text:state.stats?.total || 0})));
+    chips.replaceChildren();
+    $$("[data-stat]", stats).filter(n => !["all","due"].includes(n.dataset.stat)).forEach(n => n.remove());
+    subjects.forEach(s => {
+      tabs.append(el("button", {type:"button",dataset:{quickSubject:s.id},text:s.name}));
+      sidebar.append(el("button", {class:"side-filter",type:"button",dataset:{subject:s.id}},
+        el("span",{class:`sf-dot dot-${s.id === "linear" ? "linear" : "analysis"}`}),el("span",{class:"subject-name",text:s.name}),
+        el("em",{dataset:{subjectCount:s.id},text:state.stats?.by_subject?.[s.id] || 0})));
+      chips.append(el("button",{type:"button",class:`choice-chip subject-${s.id === "linear" ? "linear" : "analysis"}`,dataset:{value:s.id},text:s.name}));
+      stats.append(el("button",{type:"button",class:"stat-cell",dataset:{stat:s.id}},
+        el("strong",{text:state.stats?.by_subject?.[s.id] || 0}),el("span",{text:s.name})));
+    });
+    if (state.editor) setChips("subject-chips",state.editor.subject);
+    applyFiltersToUI();
+    renderSubjectManager();
+  }
+
+  function renderSubjectManager(editId = null) {
+    const root = $("#subject-manager");
+    root.replaceChildren();
+    state.subjects.forEach(s => {
+      if (s.id === editId) {
+        const input = el("input",{type:"text",value:s.name,maxlength:"24",required:true,"aria-label":"修改科目名称",autocomplete:"off"});
+        const save = el("button",{type:"submit",class:"btn btn-primary btn-sm",text:"保存"});
+        const cancel = el("button",{type:"button",class:"btn btn-ghost btn-sm",text:"取消"});
+        const form = el("form",{class:"subject-row subject-edit-row"},input,save,cancel);
+        cancel.addEventListener("click",()=>renderSubjectManager());
+        form.addEventListener("submit",event=>{
+          event.preventDefault(); saveSubject(s.id,input.value,form);
+        });
+        root.append(form); input.focus(); input.select();
+      } else {
+        const edit = el("button",{type:"button",class:"btn btn-ghost btn-sm",dataset:{subjectEdit:s.id},text:"编辑","aria-label":`编辑${s.name}`});
+        edit.addEventListener("click",()=>renderSubjectManager(s.id));
+        root.append(el("div",{class:"subject-row"},el("span",{class:"subject-name",text:s.name}),edit));
+      }
+    });
+  }
+
+  async function saveSubject(id, name, form) {
+    const buttons = $$("button",form);
+    buttons.forEach(b=>{b.disabled=true;});
+    const message = $("#subject-message");
+    message.textContent = "正在保存…";
+    message.classList.remove("error");
+    try {
+      const result = await api(id ? `/api/subjects/${id}` : "/api/subjects", {method:id ? "PUT" : "POST",body:{name}});
+      renderSubjects(result.subjects);
+      if (!id) $("#subject-add-form").reset();
+      message.textContent = id ? "科目名称已更新，已有题目已同步。" : "科目已添加，记题时可以直接选择。";
+      if (id) $(`[data-subject-edit="${id}"]`).focus();
+      else $("#subject-new-name").focus();
+      await Promise.all([refreshStats(), loadEntries({silent:true})]);
+    } catch (error) {
+      message.textContent = error.message || "保存失败，请重试";
+      message.classList.add("error");
+    } finally {
+      buttons.forEach(b=>{b.disabled=false;});
+    }
+  }
+
   function openSettings() {
     openDialog($("#settings-dialog"));
     api("/api/settings")
       .then((settings) => {
+        renderSubjects(settings.subjects);
         setText(
           $("#settings-backup-meta"),
           settings.is_admin
@@ -3547,6 +3623,9 @@
 
   function bindSettings() {
     $("#open-settings").addEventListener("click", openSettings);
+    $("#subject-add-form").addEventListener("submit",event=>{
+      event.preventDefault(); saveSubject(null,$("#subject-new-name").value,event.currentTarget);
+    });
 
     $("#password-form").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -3653,7 +3732,7 @@
         danger: false,
       });
       if (!ok) return;
-      const result = await api("/api/import", { method: "POST", body: { entries: data.entries } });
+      const result = await api("/api/import", { method: "POST", body: { entries: data.entries, subjects: data.subjects || [] } });
       toast(
         `导入完成：新增 ${result.imported} 道，跳过 ${result.skipped} 道`,
         "success",
@@ -3662,6 +3741,8 @@
       if (result.errors && result.errors.length) {
         console.warn("Import warnings", result.errors);
       }
+      const subjects = await api("/api/subjects");
+      renderSubjects(subjects.subjects);
       await Promise.all([refreshStats(), loadEntries({ silent: true })]);
       closeDialog($("#settings-dialog"));
     } catch (err) {
@@ -3698,11 +3779,13 @@
   }
 
   function bindFilters() {
-    $$("[data-quick-subject]").forEach((button) => button.addEventListener("click", () => {
+    $(".subject-tabs").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-quick-subject]");
+      if (!button) return;
       state.filters.subject = button.dataset.quickSubject;
       applyFiltersToUI();
       loadEntries();
-    }));
+    });
     $("#subject-filter").addEventListener("click", (event) => {
       const button = event.target.closest("[data-subject]");
       if (!button) return;
@@ -3721,8 +3804,9 @@
       loadEntries();
     });
 
-    $$(".stat-cell").forEach((button) => {
-      button.addEventListener("click", () => {
+    $(".stat-grid").addEventListener("click", (event) => {
+        const button = event.target.closest(".stat-cell");
+        if (!button) return;
         const stat = button.dataset.stat;
         if (stat === "all") {
           clearFilters();
@@ -3747,7 +3831,6 @@
         applyFiltersToUI();
         closeMobileSidebar();
         loadEntries();
-      });
     });
 
     $("#tag-cloud").addEventListener("click", (event) => {
@@ -4016,6 +4099,7 @@
       }
       state.csrf = me.csrf;
       applyUser(me.user);
+      renderSubjects(me.subjects);
     } catch (err) {
       return;
     }

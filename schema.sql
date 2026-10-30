@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_invite_created ON invite_codes (created_at DESC);
 CREATE TABLE IF NOT EXISTS entries (
     id              TEXT PRIMARY KEY,
     user_id         TEXT NOT NULL DEFAULT '',
-    subject         TEXT NOT NULL CHECK (subject IN ('analysis', 'linear')),
+    subject         TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'unsolved'
                     CHECK (status IN ('unsolved', 'wrong', 'reviewing', 'mastered')),
     title           TEXT NOT NULL DEFAULT '',
@@ -102,3 +102,11 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 
 CREATE INDEX IF NOT EXISTS idx_ai_usage_time ON ai_usage (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS subjects (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(user_id, id)
+);

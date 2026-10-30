@@ -392,7 +392,7 @@
       const entryHtml = entries.length
         ? entries
             .map((entry, index) => {
-              const subject = entry.subject === "linear" ? "线性代数" : "工科数学分析";
+              const subject = entry.subject_label || (entry.subject === "linear" ? "线性代数" : "工科数学分析");
               const status =
                 { unsolved: "不会", wrong: "错题", reviewing: "待复习", mastered: "已掌握" }[
                   entry.status

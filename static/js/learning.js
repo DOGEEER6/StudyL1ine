@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const subjects = { analysis: "数学分析", linear: "线性代数" };
+  let subjects = {};
   const states = [ ["unsolved","不会","#e8ba62"], ["wrong","错题","#df947e"], ["reviewing","待复习","#91c6fa"], ["mastered","已掌握","#2476dc"] ];
   let data = null, subject = "all", query = "", poll = null, sequence = 0;
   function node(tag, cls, text) { const e=document.createElement(tag); if(cls)e.className=cls; if(text!==undefined)e.textContent=text; return e; }
@@ -91,7 +91,14 @@
     try {
       const result=await get('/api/learning');
       if(current!==sequence)return;
-      data=result; renderCharts();
+      data=result;
+      subjects=Object.fromEntries((data.subjects || []).map(s=>[s.id,s.name]));
+      const tabs=document.querySelector('.knowledge-subjects'); tabs.replaceChildren();
+      for(const [id,name] of [["all","全部"],...Object.entries(subjects)]) {
+        const button=node("button","",name); button.type="button"; button.dataset.subject=id;
+        button.classList.toggle("active",id===subject); button.setAttribute("aria-pressed",String(id===subject)); tabs.append(button);
+      }
+      renderCharts();
       $("learning-error").hidden=true;
       $("learning-content").hidden=false;
       if(data.ai_pending && !document.hidden) poll=setTimeout(()=>load(true),5000);
@@ -104,11 +111,12 @@
     }
   }
   $("learning-refresh").addEventListener('click',()=>load());
-  document.querySelectorAll('[data-subject]').forEach(button=>button.addEventListener('click',()=>{
+  document.querySelector('.knowledge-subjects').addEventListener('click',event=>{
+    const button=event.target.closest('[data-subject]'); if(!button)return;
     subject=button.dataset.subject;
     document.querySelectorAll('[data-subject]').forEach(b=>{const active=b.dataset.subject===subject;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
     if(data)renderKnowledge();
-  }));
+  });
   $("knowledge-search").addEventListener('input',event=>{query=event.target.value.trim().toLowerCase();if(data)renderKnowledge();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(poll);else load(true);});
   load();
