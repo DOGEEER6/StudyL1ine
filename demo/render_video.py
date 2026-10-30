@@ -227,7 +227,7 @@ def main():
     music=make_music(DURATION)
     target=OUT/'数学错题本-手机完整演示.mp4'
     ffmpeg=imageio_ffmpeg.get_ffmpeg_exe()
-    cmd=[ffmpeg,'-y','-f','rawvideo','-vcodec','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','pipe:0','-i',str(music),'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-r',str(FPS),'-c:a','aac','-b:a','192k','-af','loudnorm=I=-18:TP=-1.5:LRA=8','-movflags','+faststart','-shortest',str(target)]
+    cmd=[ffmpeg,'-y','-f','rawvideo','-vcodec','rawvideo','-pix_fmt','rgb24','-s',f'{W}x{H}','-r',str(FPS),'-i','pipe:0','-i',str(music),'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-r',str(FPS),'-c:a','aac','-b:a','192k','-af','loudnorm=I=-18:TP=-1.5:LRA=8','-ar','48000','-movflags','+faststart','-shortest',str(target)]
     log=(CACHE/'encode.log').open('w')
     process=subprocess.Popen(cmd,stdin=subprocess.PIPE,stderr=log)
     elapsed=0;start=time.time();previous=None
