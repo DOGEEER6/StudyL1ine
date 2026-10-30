@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/image-editor.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/learning.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
@@ -29,7 +30,7 @@
     <nav class="topbar-nav" aria-label="主导航">
       <a class="nav-link active" href="/">错题本</a>
       <button class="nav-link" id="nav-review" type="button">复习</button>
-      <a class="nav-link" href="#knowledge">知识点</a>
+      <a class="nav-link" href="/learning">学习状况</a>
       <a class="nav-link" href="/admin" data-admin-only>管理</a>
     </nav>
     <div class="topbar-actions">
@@ -277,6 +278,7 @@
     <button type="button" id="mobile-home" aria-current="page"><svg class="icon"><use href="#i-book"></use></svg><span>错题本</span></button>
     <button type="button" id="mobile-review"><span class="tab-icon"><svg class="icon"><use href="#i-refresh"></use></svg><b id="mobile-due" hidden>0</b></span><span>复习</span></button>
     <button type="button" id="mobile-add"><svg class="icon"><use href="#i-plus"></use></svg><span>记一题</span></button>
+    <a href="/learning" id="mobile-learning"><svg class="icon"><use href="#i-chart"></use></svg><span>学习状况</span></a>
     <button type="button" id="mobile-settings"><svg class="icon"><use href="#i-settings"></use></svg><span>我的</span></button>
   </nav>
 
@@ -350,7 +352,7 @@
                     <svg class="icon"><use href="#i-eye"></use></svg><span>预览</span>
                   </button>
                   <button class="text-btn" id="ocr-problem-btn" type="button">
-                    <svg class="icon"><use href="#i-spark"></use></svg><span>AI 识别图片</span>
+                    <svg class="icon"><use href="#i-spark"></use></svg><span>立即识别图片</span>
                   </button>
                 </div>
               </div>
@@ -386,8 +388,8 @@
                 <input type="checkbox" id="f-has-solution">
                 <span class="switch"></span>
                 <span class="solution-switch-copy">
-                  <strong>上传解析</strong>
-                  <small>勾选后可手写解答；不勾选则由 AI 自动生成</small>
+                  <strong>补充自己的解析</strong>
+                  <small>可选补充，保存后仍会自动 AI 解析与知识点归类</small>
                 </span>
               </label>
             </div>

@@ -750,7 +750,7 @@
   }
 
   function hasPendingAi() {
-    return state.entries.some((entry) => entry.ai_status === "pending" || entry.ai_status === "generating");
+    return Boolean(state.stats?.ai_pending) || state.entries.some((entry) => entry.ai_status === "pending" || entry.ai_status === "generating");
   }
 
   function scheduleAiPoll() {
@@ -2356,7 +2356,7 @@
         handleError(err);
       } finally {
         button.disabled = false;
-        label.textContent = "AI 识别图片";
+      label.textContent = "立即识别图片";
       }
     });
 
@@ -3917,6 +3917,7 @@
   }
 
   async function init() {
+    const startupAction = new URLSearchParams(location.search).get("action");
     updateTopbarDate();
     readURL();
     syncFilterInputs();
@@ -3945,6 +3946,9 @@
     }
     await Promise.all([refreshStats(), loadEntries()]);
     loadAnnouncement();
+    if (startupAction === "add") openEditor();
+    else if (startupAction === "review") startDueReview();
+    else if (startupAction === "settings") openSettings();
   }
 
   if (document.readyState === "loading") {
