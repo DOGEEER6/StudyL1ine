@@ -1,9 +1,9 @@
 """Isolated promotional demo. No production data, API keys or network AI calls."""
-import os, sys, json, uuid, time, io, base64
+import os, sys, json, uuid, time, io, base64, shutil
 from pathlib import Path
 from datetime import timedelta
 ROOT=Path(__file__).resolve().parents[1]
-DATA=Path(__file__).parent/'render-data'
+DATA=Path(os.environ.get('MATH_DEMO_DATA_DIR',Path(__file__).parent/'render-data')).resolve()
 os.environ.update(MATH_DATA_DIR=str(DATA),MATH_COOKIE_SECURE='0',MATH_ADMIN_USER='demo',MATH_ADMIN_PASSWORD='Demo-video-2026',MATH_AI_API_KEY='demo-only-not-a-real-key')
 sys.path.insert(0,str(ROOT))
 import app as a
@@ -41,13 +41,5 @@ if not db.execute('SELECT count(*) FROM entries').fetchone()[0]:
     db.commit()
 db.commit();db.close()
 DATA.mkdir(exist_ok=True)
-im=Image.new('RGB',(1050,620),'#fffdf9'); d=ImageDraw.Draw(im)
-font=lambda n:ImageFont.truetype('C:/Windows/Fonts/msyh.ttc',n)
-d.text((70,55),'数学分析 · 每日一题',font=font(44),fill='#233a55')
-d.line((70,125,980,125),fill='#b7cce5',width=3)
-d.text((70,180),'用泰勒公式求下列极限：',font=font(40),fill='#27394a')
-d.text((100,290),'lim   (sin x − x cos x) / x³',font=font(52),fill='#122b48')
-d.text((105,360),'x → 0',font=font(32),fill='#536e8a')
-d.text((70,500),'提示：注意分子中首阶项的抵消。',font=font(30),fill='#657b91')
-im.save(DATA/'demo-question.png')
-a.app.run(host='127.0.0.1',port=8879,threaded=True)
+shutil.copyfile(Path(__file__).parent/'assets'/'demo-question.png',DATA/'demo-question.png')
+a.app.run(host='127.0.0.1',port=int(os.environ.get('MATH_DEMO_PORT','8879')),threaded=True)
