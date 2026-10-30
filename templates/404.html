@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>页面不存在 · Mathline</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}">
+</head>
+<body class="error-page">
+  <div class="error-card">
+    <span class="error-code">404</span>
+    <h1>这一页不在定义域里</h1>
+    <p>链接可能已经失效，或者题目被移动了。</p>
+    <a class="btn btn-primary" href="/">回到时间线</a>
+  </div>
+</body>
+</html>

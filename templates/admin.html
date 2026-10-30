@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f2">
+  <meta name="robots" content="noindex,nofollow">
+  <title>管理后台 · Mathline</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
+</head>
+<body class="admin-page minimal-admin">
+  {% include 'icons.html' %}
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <a class="brand" href="/">
+        <span class="brand-mark">∫</span>
+        <span class="brand-text"><strong>数学错题本</strong><small>Mathline · 管理后台</small></span>
+      </a>
+    </div>
+    <nav class="topbar-nav" aria-label="管理导航">
+      <a class="nav-link" href="/">← 返回时间线</a>
+      <a class="nav-link active" href="/admin">管理后台</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="admin-status-pill" id="admin-status-pill"><i></i> 未配置</span>
+      <a class="btn btn-ghost btn-sm" href="/">时间线</a>
+    </div>
+  </header>
+
+  <main class="admin-shell">
+    <div class="admin-head admin-head-row">
+      <div>
+        <p class="eyebrow">ADMIN CONSOLE · {{ app_version }}</p>
+        <h1>管理后台</h1>
+        <p>用户、空间、AI、公告与邀请码，都在这一页。</p>
+      </div>
+      <div class="admin-head-actions">
+        <span class="admin-head-note">仅管理员可见</span>
+        <a class="btn btn-ghost btn-sm" href="/">回到我的时间线</a>
+      </div>
+    </div>
+
+    <nav class="admin-tabs" id="admin-tabs" role="tablist" aria-label="管理模块">
+      <button class="admin-tab active" type="button" data-admin-tab="overview" role="tab" aria-selected="true">
+        <span class="admin-tab-index">01</span><span>概览</span>
+      </button>
+      <button class="admin-tab" type="button" data-admin-tab="ai" role="tab" aria-selected="false">
+        <span class="admin-tab-index">02</span><span>AI 引擎</span>
+      </button>
+      <button class="admin-tab" type="button" data-admin-tab="users" role="tab" aria-selected="false">
+        <span class="admin-tab-index">03</span><span>用户管理</span>
+        <b class="admin-tab-badge" id="admin-users-badge" hidden>0</b>
+      </button>
+      <button class="admin-tab" type="button" data-admin-tab="invites" role="tab" aria-selected="false">
+        <span class="admin-tab-index">04</span><span>邀请码</span>
+      </button>
+      <button class="admin-tab" type="button" data-admin-tab="announcement" role="tab" aria-selected="false">
+        <span class="admin-tab-index">05</span><span>公告</span>
+      </button>
+    </nav>
+
+    <section class="admin-panel" id="panel-overview" data-panel="overview">
+      <div class="admin-overview-grid">
+        <div class="admin-summary-grid">
+          <button class="admin-summary-card" type="button" data-goto-tab="users">
+            <span class="summary-kicker">USERS</span>
+            <strong id="admin-stat-users">—</strong>
+            <span>注册用户</span>
+            <small>含管理员 <b id="admin-stat-admins">—</b></small>
+          </button>
+          <button class="admin-summary-card" type="button" data-goto-tab="users">
+            <span class="summary-kicker">ENTRIES</span>
+            <strong id="admin-stat-entries">—</strong>
+            <span>题目总数</span>
+            <small>跨所有账号</small>
+          </button>
+          <button class="admin-summary-card" type="button" data-goto-tab="users">
+            <span class="summary-kicker">IMAGES</span>
+            <strong id="admin-stat-images">—</strong>
+            <span>上传图片</span>
+            <small>题目与解答</small>
+          </button>
+          <button class="admin-summary-card" type="button" data-goto-tab="users">
+            <span class="summary-kicker">STORAGE</span>
+            <strong id="admin-stat-storage">—</strong>
+            <span>题库占用</span>
+            <small>图片与缩略图</small>
+          </button>
+          <button class="admin-summary-card" type="button" data-goto-tab="users">
+            <span class="summary-kicker">FREE</span>
+            <strong id="admin-stat-free">—</strong>
+            <span>数据盘剩余</span>
+            <small id="admin-disk-text">—</small>
+          </button>
+        </div>
+
+        <section class="admin-card admin-overview-side">
+          <div class="admin-card-head">
+            <div><p class="eyebrow">SYSTEM</p><h2>运行概览</h2></div>
+            <span class="admin-state-dot" id="admin-overview-dot"></span>
+          </div>
+
+          <div class="overview-status-row">
+            <div>
+              <span class="overview-label">AI 自动解析</span>
+              <strong id="admin-overview-ai-status">检查中…</strong>
+              <small id="admin-overview-ai-detail">等待读取配置</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" type="button" data-goto-tab="ai">配置 AI</button>
+          </div>
+
+          <div class="overview-status-row">
+            <div>
+              <span class="overview-label">邀请码</span>
+              <strong id="admin-overview-invites">—</strong>
+              <small>一次性注册凭证</small>
+            </div>
+            <button class="btn btn-ghost btn-sm" type="button" data-goto-tab="invites">管理邀请码</button>
+          </div>
+
+          <div class="storage-meter">
+            <div class="storage-meter-head"><span>数据盘空间</span><b id="admin-overview-storage-label">—</b></div>
+            <div class="storage-meter-track"><i id="admin-overview-storage-bar"></i></div>
+            <p id="admin-overview-storage-note">正在读取磁盘信息…</p>
+          </div>
+
+          <div class="overview-footnote">
+            <span>未关联图片：<b id="admin-overview-orphans">—</b></span>
+            <span id="admin-overview-updated">—</span>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="admin-panel" id="panel-ai" data-panel="ai" hidden>
+      <div class="admin-grid">
+        <section class="admin-card admin-config">
+          <div class="admin-card-head">
+            <div><p class="eyebrow">CONNECTION</p><h2>模型连接</h2></div>
+            <label class="admin-switch">
+              <input type="checkbox" id="ai-enabled">
+              <span class="switch"></span>
+              <span>启用</span>
+            </label>
+          </div>
+
+          <div class="admin-form">
+            <label class="form-field">
+              <span>服务商预设</span>
+              <select id="ai-preset">
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="siliconflow">SiliconFlow</option>
+                <option value="moonshot">Moonshot</option>
+                <option value="custom">自定义 / 本地</option>
+              </select>
+            </label>
+
+            <label class="form-field">
+              <span>Base URL <small>OpenAI 兼容接口</small></span>
+              <input id="ai-base" type="url" placeholder="https://api.openai.com/v1" autocomplete="off">
+            </label>
+
+            <div class="form-row two">
+              <label class="form-field">
+                <span>文本模型</span>
+                <input id="ai-model" type="text" placeholder="gpt-4o-mini" autocomplete="off">
+              </label>
+              <label class="form-field">
+                <span>视觉模型 <small>可选，用于 OCR</small></span>
+                <input id="ai-vision" type="text" placeholder="留空则复用文本模型" autocomplete="off">
+              </label>
+            </div>
+
+            <label class="form-field">
+              <span>API Key <small id="ai-key-state">尚未配置</small></span>
+              <input id="ai-key" type="password" placeholder="填写新的 Key；留空保持不变" autocomplete="new-password">
+            </label>
+
+            <div class="form-row two">
+              <label class="form-field">
+                <span>Temperature</span>
+                <input id="ai-temperature" type="number" min="0" max="1.5" step="0.1" value="0.2">
+              </label>
+              <label class="form-field">
+                <span>最大输出 tokens <small>最高 4096</small></span>
+                <input id="ai-max-tokens" type="number" min="256" max="4096" step="128" value="2400">
+              </label>
+            </div>
+
+            <div class="form-row two">
+              <label class="form-field">
+                <span>24 小时调用额度 <small>0 = 不限制</small></span>
+                <input id="ai-daily-limit" type="number" min="0" max="1000" step="10" value="80">
+              </label>
+              <label class="form-field">
+                <span>每小时调用额度</span>
+                <input id="ai-hourly-limit" type="number" min="0" max="500" step="5" value="30">
+              </label>
+            </div>
+
+            <label class="form-field">
+              <span>两次 AI 请求最小间隔（秒）<small>防止连点消耗 token</small></span>
+              <input id="ai-min-interval" type="number" min="0" max="120" step="1" value="3">
+            </label>
+
+            <div class="admin-toggles">
+              <label class="check-row"><input type="checkbox" id="ai-auto-solve" checked><span>保存时自动生成解答（没有手写解析 / 解析图片）</span></label>
+              <label class="check-row"><input type="checkbox" id="ai-auto-ocr" checked><span>题目没有文字时自动识别图片</span></label>
+            </div>
+
+            <div class="admin-actions">
+              <button class="btn btn-primary" id="ai-save" type="button">
+                <svg class="icon"><use href="#i-check"></use></svg><span>保存配置</span>
+              </button>
+              <button class="btn btn-ghost" id="ai-test" type="button">
+                <svg class="icon"><use href="#i-bolt"></use></svg><span>测试连接</span>
+              </button>
+              <button class="text-btn" id="ai-clear-key" type="button">清除 API Key</button>
+            </div>
+            <p class="admin-note" id="ai-test-result">API Key 只保存在服务器 DATA_DIR/ai_key，权限 600；不会返回给浏览器。</p>
+          </div>
+        </section>
+
+        <aside class="admin-side">
+          <section class="admin-card">
+            <div class="admin-card-head"><div><p class="eyebrow">USAGE</p><h2>AI 使用</h2></div></div>
+            <div class="admin-stats" id="ai-stats">
+              <div><strong id="ai-stat-done">0</strong><span>AI 解析</span></div>
+              <div><strong id="ai-stat-pending">0</strong><span>进行中</span></div>
+              <div><strong id="ai-stat-errors">0</strong><span>失败</span></div>
+              <div><strong id="ai-stat-ocr">0</strong><span>OCR</span></div>
+            </div>
+            <p class="admin-note" id="ai-usage-line">今日调用：0 次</p>
+            <p class="admin-note" id="ai-last-test">还没有测试连接。</p>
+          </section>
+
+          <section class="admin-card">
+            <div class="admin-card-head"><div><p class="eyebrow">TROUBLESHOOT</p><h2>最近失败</h2></div></div>
+            <div class="admin-errors" id="ai-recent-errors"><p class="side-empty">没有失败记录。</p></div>
+          </section>
+
+          <section class="admin-card admin-tip">
+            <p class="eyebrow">PROMPT</p>
+            <h2>它会怎么回答？</h2>
+            <p>自动解析会要求模型先给最终答案，再给关键步骤；追问会带上这道题的原题、已有解答和最近对话。所有公式用 LaTeX 保存。</p>
+            <p class="admin-note">如果服务商不支持视觉，OCR 会失败，但文字题仍可正常生成解析。</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="admin-panel" id="panel-users" data-panel="users" hidden>
+      <div class="users-toolbar">
+        <div>
+          <p class="eyebrow">ACCOUNTS · STORAGE</p>
+          <h2>用户管理</h2>
+          <p>查看每个账号的题目、图片与空间占用。列表只读，不会改动用户数据。</p>
+        </div>
+        <div class="users-toolbar-actions">
+          <label class="search-box admin-search" for="user-search">
+            <svg class="icon"><use href="#i-search"></use></svg>
+            <input id="user-search" type="search" placeholder="搜索用户名…" autocomplete="off">
+          </label>
+          <select class="select-control" id="user-sort" aria-label="用户排序">
+            <option value="storage">空间从大到小</option>
+            <option value="entries">题目从多到少</option>
+            <option value="recent">最近活跃</option>
+            <option value="created">注册时间</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="user-metrics">
+        <div><strong id="users-count-label">0</strong><span>用户</span></div>
+        <div><strong id="users-entry-label">0</strong><span>题目</span></div>
+        <div><strong id="users-image-label">0</strong><span>图片</span></div>
+        <div><strong id="users-storage-label">0 B</strong><span>总占用</span></div>
+      </div>
+
+      <div class="user-list" id="user-list">
+        <div class="admin-loading">正在载入用户…</div>
+      </div>
+    </section>
+
+    <section class="admin-panel" id="panel-invites" data-panel="invites" hidden>
+      <section class="admin-card invite-card invite-card-wide">
+        <div class="admin-card-head">
+          <div><p class="eyebrow">INVITES</p><h2>注册邀请码</h2></div>
+          <button class="btn btn-primary btn-sm" id="invite-generate" type="button">生成邀请码</button>
+        </div>
+        <p class="admin-note">普通用户注册必须填写一次性邀请码。发给同学后，对方在注册页输入即可；已使用的邀请码会显示为灰色。</p>
+        <div class="invite-list" id="invite-list"><p class="side-empty">正在载入…</p></div>
+      </section>
+    </section>
+
+    <section class="admin-panel" id="panel-announcement" data-panel="announcement" hidden>
+      <div class="announcement-editor-grid">
+        <section class="admin-card">
+          <div class="admin-card-head">
+            <div><p class="eyebrow">ANNOUNCEMENT</p><h2>首页公告</h2></div>
+            <span class="admin-state-dot" id="announcement-state-dot"></span>
+          </div>
+          <p class="admin-note">两种形式可以单独开启；保存后，已读用户会在公告版本更新时重新看到。</p>
+
+          <div class="announcement-toggle-row">
+            <label class="check-row"><input type="checkbox" id="announcement-popup-enabled"><span>首页弹窗公告</span></label>
+            <label class="check-row"><input type="checkbox" id="announcement-banner-enabled"><span>顶部横幅公告</span></label>
+          </div>
+
+          <div class="announcement-form-block">
+            <div class="announcement-form-title">弹窗内容</div>
+            <label class="form-field">
+              <span>标题</span>
+              <input id="announcement-popup-title" type="text" maxlength="120" placeholder="例如：本周更新">
+            </label>
+            <label class="form-field">
+              <span>正文 <small>支持换行</small></span>
+              <textarea id="announcement-popup-body" rows="5" maxlength="6000" placeholder="例如：批量切题上线了，一张照片可以自动拆成多道题。"></textarea>
+            </label>
+          </div>
+
+          <div class="announcement-form-block">
+            <div class="announcement-form-title">顶部横幅</div>
+            <label class="form-field">
+              <span>横幅文字</span>
+              <input id="announcement-banner-text" type="text" maxlength="300" placeholder="例如：新版批量切题已上线 →">
+            </label>
+          </div>
+
+          <div class="admin-actions">
+            <button class="btn btn-primary" id="announcement-save" type="button">
+              <svg class="icon"><use href="#i-check"></use></svg><span>保存公告</span>
+            </button>
+            <span class="admin-note" id="announcement-save-state"></span>
+          </div>
+        </section>
+
+        <aside class="admin-side">
+          <section class="admin-card">
+            <div class="admin-card-head"><div><p class="eyebrow">PREVIEW</p><h2>预览</h2></div></div>
+            <div class="announcement-preview-banner" id="announcement-preview-banner">
+              <span>NOTICE</span><p id="announcement-preview-banner-text">顶部横幅会显示在这里</p>
+            </div>
+            <div class="announcement-preview-popup">
+              <span class="announcement-preview-kicker">NOTICE</span>
+              <h3 id="announcement-preview-title">公告标题</h3>
+              <p id="announcement-preview-body">弹窗正文会显示在这里。</p>
+            </div>
+          </section>
+          <section class="admin-card admin-tip">
+            <p class="eyebrow">TIP</p>
+            <h2>什么时候用？</h2>
+            <p>适合发布更新说明、维护通知或活动。关闭开关后，首页不再显示对应公告；已读记录不会删除。</p>
+          </section>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="modal admin-user-modal" id="user-dialog">
+    <div class="modal-card admin-user-card">
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow" id="user-dialog-eyebrow">USER</p>
+          <h2 id="user-dialog-title">用户详情</h2>
+          <p class="admin-note" id="user-dialog-sub">—</p>
+        </div>
+        <button class="icon-btn" type="button" data-close-user aria-label="关闭">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+      <div class="modal-body" id="user-detail-content">
+        <div class="admin-loading">正在载入…</div>
+      </div>
+    </div>
+  </dialog>
+
+  <footer class="site-footer">
+    <span>Mathline · 管理后台</span><span class="footer-sep">/</span><a href="/">返回时间线</a>
+    <span class="footer-spacer"></span><span>math.dogeeer.cn</span>
+  </footer>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='js/admin.js') }}?v={{ asset_version }}" defer></script>
+</body>
+</html>

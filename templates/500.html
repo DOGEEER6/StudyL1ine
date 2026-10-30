@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>服务器开小差了 · Mathline</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}">
+</head>
+<body class="error-page">
+  <div class="error-card">
+    <span class="error-code">500</span>
+    <h1>服务器开小差了</h1>
+    <p>请稍后刷新。如果一直出现，查看服务器日志 <code>math-notes/logs/app.log</code>。</p>
+    <a class="btn btn-primary" href="/">回到时间线</a>
+  </div>
+</body>
+</html>

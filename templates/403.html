@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>没有权限 · Mathline</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}">
+</head>
+<body class="error-page">
+  <div class="error-card">
+    <span class="error-code">403</span>
+    <h1>这里需要管理员权限</h1>
+    <p>普通账号只能管理自己的题目。AI 引擎配置由管理员统一维护。</p>
+    <a class="btn btn-primary" href="/">回到我的时间线</a>
+  </div>
+</body>
+</html>

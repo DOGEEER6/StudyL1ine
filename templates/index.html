@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f2">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Mathline · 工科数学分析 / 线性代数错题时间线</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
+</head>
+<body class="app-page minimal-page">
+  {% include 'icons.html' %}
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="icon-btn mobile-only" id="sidebar-toggle" type="button" aria-label="打开筛选">
+        <svg class="icon"><use href="#i-sliders"></use></svg>
+      </button>
+      <a class="brand" href="/" aria-label="Mathline 首页">
+        <span class="brand-mark">∫</span>
+        <span class="brand-text"><strong>数学错题本</strong><small>Mathline · 工科数学分析 × 线性代数</small></span>
+      </a>
+    </div>
+    <nav class="topbar-nav" aria-label="主导航">
+      <a class="nav-link active" href="/">时间线</a>
+      <button class="nav-link" id="nav-review" type="button">复习</button>
+      <a class="nav-link" href="#knowledge">知识点</a>
+      <a class="nav-link" href="/admin" data-admin-only>AI 管理</a>
+    </nav>
+    <div class="topbar-actions">
+      <button class="user-chip" id="user-chip" type="button" title="账号设置">
+        <span class="user-avatar" id="user-avatar">M</span>
+        <span id="user-name">…</span>
+      </button>
+      <button class="btn btn-ghost btn-sm hide-sm" id="header-export" type="button">
+        <svg class="icon"><use href="#i-printer"></use></svg><span>练习卷</span>
+      </button>
+      <button class="btn btn-primary btn-sm" id="header-add" type="button">
+        <svg class="icon"><use href="#i-plus"></use></svg><span>新建题目</span>
+      </button>
+      <button class="icon-btn" id="open-settings" type="button" aria-label="设置" title="设置">
+        <svg class="icon"><use href="#i-settings"></use></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="site-announcement" id="site-announcement" hidden>
+    <div class="site-announcement-inner">
+      <span class="announcement-mark">NOTICE</span>
+      <p id="site-announcement-text"></p>
+      <button class="announcement-close" id="announcement-dismiss" type="button" aria-label="关闭公告">
+        <svg class="icon"><use href="#i-x"></use></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="筛选与统计">
+      <div class="sidebar-scroll">
+        <section class="side-card overview-card">
+          <div class="side-head">
+            <span>学习总览</span>
+            <button class="icon-btn tiny" id="refresh-btn" type="button" title="刷新" aria-label="刷新">
+              <svg class="icon"><use href="#i-refresh"></use></svg>
+            </button>
+          </div>
+          <div class="stat-grid">
+            <button class="stat-cell" data-stat="all" type="button">
+              <strong id="stat-total">0</strong><span>全部题目</span>
+            </button>
+            <button class="stat-cell" data-stat="due" type="button">
+              <strong id="stat-due">0</strong><span>今日复习</span>
+            </button>
+            <button class="stat-cell" data-stat="analysis" type="button">
+              <strong id="stat-analysis">0</strong><span>数学分析</span>
+            </button>
+            <button class="stat-cell" data-stat="linear" type="button">
+              <strong id="stat-linear">0</strong><span>线性代数</span>
+            </button>
+          </div>
+
+          <div class="streak-line">
+            <span class="streak-icon"><svg class="icon"><use href="#i-flame"></use></svg></span>
+            <span id="streak-text">从今天开始记录</span>
+          </div>
+
+          <div class="due-panel" id="due-panel" role="button" tabindex="0">
+            <div class="due-copy">
+              <span class="due-kicker">REVIEW QUEUE</span>
+              <strong id="due-title">今天没有待复习</strong>
+              <small id="due-sub">按遗忘曲线，到期会自动出现在这里</small>
+            </div>
+            <span class="due-arrow"><svg class="icon"><use href="#i-arrow-right"></use></svg></span>
+          </div>
+
+          <div class="heatmap-block">
+            <div class="heatmap-head"><span>学习足迹</span><small>近 17 周</small></div>
+            <div class="heatmap" id="heatmap" aria-label="学习活跃度"></div>
+            <div class="heatmap-foot"><span>少</span><i class="hm-0"></i><i class="hm-1"></i><i class="hm-2"></i><i class="hm-3"></i><i class="hm-4"></i><span>多</span></div>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <div class="side-head"><span>学科</span></div>
+          <div class="side-filter-list" id="subject-filter">
+            <button class="side-filter active" data-subject="all" type="button">
+              <span class="sf-dot dot-all"></span><span>全部</span><em id="sf-all">0</em>
+            </button>
+            <button class="side-filter" data-subject="analysis" type="button">
+              <span class="sf-dot dot-analysis"></span><span>工科数学分析</span><em id="sf-analysis">0</em>
+            </button>
+            <button class="side-filter" data-subject="linear" type="button">
+              <span class="sf-dot dot-linear"></span><span>线性代数</span><em id="sf-linear">0</em>
+            </button>
+          </div>
+        </section>
+
+        <section class="side-section">
+          <div class="side-head"><span>状态</span></div>
+          <div class="side-filter-list" id="status-filter">
+            <button class="side-filter active" data-status="all" type="button">
+              <span class="sf-status s-all"></span><span>全部状态</span>
+            </button>
+            <button class="side-filter" data-status="unsolved" type="button">
+              <span class="sf-status s-unsolved"></span><span>不会</span><em id="st-unsolved">0</em>
+            </button>
+            <button class="side-filter" data-status="wrong" type="button">
+              <span class="sf-status s-wrong"></span><span>错题</span><em id="st-wrong">0</em>
+            </button>
+            <button class="side-filter" data-status="reviewing" type="button">
+              <span class="sf-status s-reviewing"></span><span>待复习</span><em id="st-reviewing">0</em>
+            </button>
+            <button class="side-filter" data-status="mastered" type="button">
+              <span class="sf-status s-mastered"></span><span>已掌握</span><em id="st-mastered">0</em>
+            </button>
+          </div>
+        </section>
+
+        <section class="side-section" id="knowledge">
+          <div class="side-head">
+            <span>知识点</span>
+            <button class="text-btn tiny" id="clear-tags" type="button" hidden>清除</button>
+          </div>
+          <div class="tag-cloud" id="tag-cloud">
+            <p class="side-empty">添加题目后，标签会汇总在这里。</p>
+          </div>
+        </section>
+
+        <section class="side-section side-actions">
+          <div class="side-head"><span>数据</span></div>
+          <button class="side-action" id="export-data" type="button">
+            <svg class="icon"><use href="#i-download"></use></svg><span>导出我的 JSON 备份</span>
+          </button>
+          <button class="side-action" id="import-data" type="button">
+            <svg class="icon"><use href="#i-upload"></use></svg><span>导入备份</span>
+          </button>
+          <button class="side-action" id="backup-now" type="button" data-admin-only>
+            <svg class="icon"><use href="#i-layers"></use></svg><span>创建服务器备份</span>
+          </button>
+        </section>
+
+        <a class="ai-side-card" href="/admin" data-admin-only>
+          <span class="ai-side-icon">✦</span>
+          <span><strong>AI 引擎</strong><small>配置模型、API Key 与视觉识别</small></span>
+          <span class="ai-side-arrow">→</span>
+        </a>
+
+        <p class="sidebar-foot">math.dogeeer.cn · v{{ app_version }}<br>数据保存在你的服务器上</p>
+      </div>
+    </aside>
+    <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+
+    <main class="main-col">
+      <div class="page-intro">
+        <div class="page-intro-copy">
+          <p class="eyebrow">STUDY LOG · 错题与难题</p>
+          <h1>题目时间线</h1>
+          <p class="intro-note">工科数学分析 × 线性代数。原题、错因、解答与复习节奏，按记录日期排在这里。</p>
+        </div>
+        <div class="quick-panel">
+          <div class="quick-actions">
+            <button class="btn btn-primary" id="hero-add" type="button">
+              <svg class="icon"><use href="#i-plus"></use></svg><span>记录一道题</span>
+            </button>
+            <button class="btn btn-ghost" id="hero-review" type="button">
+              <svg class="icon"><use href="#i-refresh"></use></svg><span>开始今日复习</span>
+            </button>
+          </div>
+          <div class="quick-meta">
+            <span><b id="hero-total">0</b> 道题在时间线里</span>
+            <span>·</span>
+            <span><b id="hero-due">0</b> 道待复习</span>
+            <span>·</span>
+            <span class="hero-ai"><span class="ai-spark">✦</span> 配置 AI 自动解析</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="toolbar-main">
+          <div class="view-switch" id="mode-switch" role="group" aria-label="解答显示模式">
+            <button type="button" data-mode="solutions" class="active">
+              <svg class="icon"><use href="#i-eye"></use></svg><span>含解答</span>
+            </button>
+            <button type="button" data-mode="practice">
+              <svg class="icon"><use href="#i-eye-off"></use></svg><span>无解答 · 练习</span>
+            </button>
+          </div>
+          <div class="toolbar-tools">
+            <label class="search-box" for="search-input">
+              <svg class="icon"><use href="#i-search"></use></svg>
+              <input id="search-input" type="search" placeholder="搜索题目、章节、标签…" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+            <select class="select-control" id="sort-select" aria-label="排序方式">
+              <option value="newest">最近记录</option>
+              <option value="oldest">最早记录</option>
+              <option value="due">待复习优先</option>
+              <option value="difficulty">难度从高到低</option>
+              <option value="updated">最近修改</option>
+            </select>
+            <button class="btn btn-icon-text mobile-filter-btn" id="filter-toggle" type="button">
+              <svg class="icon"><use href="#i-sliders"></use></svg><span>筛选</span>
+              <b class="filter-badge" id="filter-badge" hidden>0</b>
+            </button>
+            <button class="btn btn-ghost" id="select-mode-btn" type="button">
+              <svg class="icon"><use href="#i-check-circle"></use></svg><span>选题</span>
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-sub">
+          <div class="active-filters" id="active-filters"></div>
+          <div class="result-count" id="result-count">正在载入…</div>
+        </div>
+      </div>
+
+      <div class="timeline" id="timeline" aria-live="polite">
+        <div class="skeleton-wrap" id="loading-skeleton">
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+      </div>
+
+      <div class="timeline-end" id="timeline-end" hidden>
+        <span>— 已经到底了，共 <b id="end-count">0</b> 道题 —</span>
+      </div>
+    </main>
+  </div>
+
+  <div class="selection-bar" id="selection-bar" hidden>
+    <div class="selection-info"><strong id="selected-count">0</strong><span>道已选</span></div>
+    <div class="selection-actions">
+      <button class="text-btn" id="select-all-btn" type="button">全选当前</button>
+      <button class="text-btn" id="clear-selection-btn" type="button">清空</button>
+      <button class="btn btn-ghost btn-sm" id="print-selected-practice" type="button">
+        <svg class="icon"><use href="#i-printer"></use></svg><span>无解答练习卷</span>
+      </button>
+      <button class="btn btn-primary btn-sm" id="print-selected-solutions" type="button">
+        <svg class="icon"><use href="#i-printer"></use></svg><span>含解答</span>
+      </button>
+    </div>
+  </div>
+
+  <dialog class="modal detail-modal" id="detail-dialog">
+    <div class="modal-card detail-card"><div id="detail-content"></div></div>
+  </dialog>
+
+  <dialog class="modal ai-chat-dialog" id="ai-chat-dialog">
+    <div class="modal-card ai-chat-card">
+      <header class="ai-chat-dialog-head">
+        <div class="ai-chat-title">
+          <span class="ai-orb">✦</span>
+          <div><strong>直接问 AI</strong><small id="ai-chat-context">继续追问这道题</small></div>
+        </div>
+        <div class="ai-chat-tools">
+          <button class="text-btn" id="ai-chat-clear" type="button">清空</button>
+          <button class="icon-btn" type="button" data-close-chat aria-label="关闭">
+            <svg class="icon"><use href="#i-x"></use></svg>
+          </button>
+        </div>
+      </header>
+      <div class="ai-thread" id="ai-thread"></div>
+      <div class="ai-compose" id="ai-compose">
+        <textarea id="ai-input" rows="1" maxlength="3000" placeholder="继续问这道题，比如：这一步为什么要分情况？"></textarea>
+        <button class="btn btn-violet" id="ai-send" type="button">
+          <svg class="icon"><use href="#i-arrow-right"></use></svg><span>发送</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal editor-modal" id="editor-dialog">
+    <form class="modal-card editor-card" id="entry-form" novalidate>
+      <header class="modal-head">
+        <div>
+          <p class="eyebrow" id="editor-eyebrow">NEW ENTRY</p>
+          <h2 id="editor-title">记录一道题</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close-dialog aria-label="关闭">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+
+      <div class="modal-body editor-body">
+        <div class="editor-grid">
+          <div class="editor-main">
+            <div class="form-row two">
+              <fieldset class="chip-field">
+                <legend>学科</legend>
+                <div class="chip-group" id="subject-chips">
+                  <button type="button" class="choice-chip subject-analysis active" data-value="analysis">工科数学分析</button>
+                  <button type="button" class="choice-chip subject-linear" data-value="linear">线性代数</button>
+                </div>
+              </fieldset>
+              <fieldset class="chip-field">
+                <legend>状态</legend>
+                <div class="chip-group" id="status-chips">
+                  <button type="button" class="choice-chip status-unsolved active" data-value="unsolved">不会</button>
+                  <button type="button" class="choice-chip status-wrong" data-value="wrong">错题</button>
+                  <button type="button" class="choice-chip status-reviewing" data-value="reviewing">待复习</button>
+                  <button type="button" class="choice-chip status-mastered" data-value="mastered">已掌握</button>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="form-block">
+              <div class="block-head">
+                <label for="f-problem">原题</label>
+                <div class="block-head-actions">
+                  <button class="text-btn preview-toggle" type="button" data-preview="problem">
+                    <svg class="icon"><use href="#i-eye"></use></svg><span>预览</span>
+                  </button>
+                  <button class="text-btn" id="ocr-problem-btn" type="button">
+                    <svg class="icon"><use href="#i-spark"></use></svg><span>AI 识别图片</span>
+                  </button>
+                </div>
+              </div>
+              <div class="math-toolbar" data-toolbar="problem" aria-label="公式快捷输入">
+                <button type="button" data-before="$" data-after="$" data-placeholder="x">行内 $…$</button>
+                <button type="button" data-before="$$&#10;" data-after="&#10;$$" data-placeholder="\int_0^1 x^2\,dx">独立 $$…$$</button>
+                <button type="button" data-before="\frac{" data-after="}{}" data-placeholder="a">分式</button>
+                <button type="button" data-before="\sqrt{" data-after="}" data-placeholder="x">根号</button>
+                <button type="button" data-before="\int_{" data-after="}^{} " data-placeholder="0">积分</button>
+                <button type="button" data-before="\lim_{" data-after="\to 0} " data-placeholder="x">极限</button>
+                <button type="button" data-before="\sum_{" data-after="}^{} " data-placeholder="n=1">求和</button>
+                <button type="button" data-before="\begin{pmatrix}" data-after="\end{pmatrix}" data-placeholder="a & b \\ c & d">矩阵</button>
+                <button type="button" data-insert="\alpha">α</button>
+                <button type="button" data-insert="\le">≤</button>
+                <button type="button" data-insert="\to">→</button>
+                <button type="button" data-insert="\infty">∞</button>
+              </div>
+              <textarea id="f-problem" rows="7" maxlength="60000" placeholder="直接粘贴题目截图，或把题目文字敲进来。留空时 AI 会自动识别图片并生成题目。"></textarea>
+              <div class="math-preview" id="preview-problem" hidden></div>
+              <div class="dropzone" id="dz-problem" data-kind="problem" tabindex="0">
+                <input type="file" accept="image/*" multiple hidden>
+                <div class="dz-empty">
+                  <svg class="icon"><use href="#i-image"></use></svg>
+                  <span>点击、拖拽或粘贴题目图片</span>
+                  <small>JPG / PNG / WebP，单张不超过 12MB</small>
+                </div>
+                <div class="dz-thumbs" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="solution-switch-row">
+              <label class="solution-switch">
+                <input type="checkbox" id="f-has-solution">
+                <span class="switch"></span>
+                <span class="solution-switch-copy">
+                  <strong>上传解析</strong>
+                  <small>勾选后可手写解答；不勾选则由 AI 自动生成</small>
+                </span>
+              </label>
+            </div>
+
+            <div class="form-block" id="solution-fields" hidden>
+              <div class="block-head">
+                <label for="f-solution">解析</label>
+                <button class="text-btn preview-toggle" type="button" data-preview="solution">
+                  <svg class="icon"><use href="#i-eye"></use></svg><span>预览</span>
+                </button>
+              </div>
+              <div class="math-toolbar" data-toolbar="solution" aria-label="公式快捷输入">
+                <button type="button" data-before="$" data-after="$" data-placeholder="x">行内 $…$</button>
+                <button type="button" data-before="$$&#10;" data-after="&#10;$$" data-placeholder="\int_0^1 x^2\,dx">独立 $$…$$</button>
+                <button type="button" data-before="\frac{" data-after="}{}" data-placeholder="a">分式</button>
+                <button type="button" data-before="\sqrt{" data-after="}" data-placeholder="x">根号</button>
+                <button type="button" data-before="\int_{" data-after="}^{} " data-placeholder="0">积分</button>
+                <button type="button" data-before="\lim_{" data-after="\to 0} " data-placeholder="x">极限</button>
+                <button type="button" data-before="\sum_{" data-after="}^{} " data-placeholder="n=1">求和</button>
+                <button type="button" data-before="\begin{pmatrix}" data-after="\end{pmatrix}" data-placeholder="a & b \\ c & d">矩阵</button>
+              </div>
+              <textarea id="f-solution" rows="7" maxlength="60000" placeholder="写下答案、关键步骤或卡住的地方。"></textarea>
+              <div class="math-preview" id="preview-solution" hidden></div>
+              <div class="dropzone" id="dz-solution" data-kind="solution" tabindex="0">
+                <input type="file" accept="image/*" multiple hidden>
+                <div class="dz-empty">
+                  <svg class="icon"><use href="#i-image"></use></svg>
+                  <span>点击、拖拽或粘贴解答图片</span>
+                  <small>手写过程、老师板书都可以</small>
+                </div>
+                <div class="dz-thumbs" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <p class="field-hint"><svg class="icon"><use href="#i-spark"></use></svg><span>标题、章节和标签由系统自动整理，不需要填写。</span></p>
+          </div>
+
+          <aside class="editor-side">
+            <div class="side-panel">
+              <div class="side-panel-title">难度</div>
+              <div class="difficulty" id="difficulty-picker" role="group" aria-label="难度">
+                <button type="button" data-value="1" title="1 星">1</button>
+                <button type="button" data-value="2" title="2 星">2</button>
+                <button type="button" data-value="3" class="active" title="3 星">3</button>
+                <button type="button" data-value="4" title="4 星">4</button>
+                <button type="button" data-value="5" title="5 星">5</button>
+              </div>
+              <label class="switch-row">
+                <input id="f-starred" type="checkbox">
+                <span class="switch"></span>
+                <span>标记为重点</span>
+              </label>
+            </div>
+            <div class="side-panel tips-panel">
+              <div class="side-panel-title">小提示</div>
+              <p>公式：行内 <code>$...$</code>，独立一行 <code>$$...$$</code>。</p>
+              <p>截图可以直接 <kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴。</p>
+              <p>保存快捷键 <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd>。</p>
+            </div>
+            <div class="draft-note" id="draft-note" hidden>
+              <svg class="icon"><use href="#i-check"></use></svg><span>草稿已自动保存</span>
+            </div>
+            <button class="btn btn-ghost btn-block" id="editor-preview-all" type="button">
+              <svg class="icon"><use href="#i-eye"></use></svg><span>预览全部公式</span>
+            </button>
+          </aside>
+        </div>
+      </div>
+
+      <footer class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close-dialog>取消</button>
+        <div class="foot-right">
+          <span class="save-hint" id="save-hint"></span>
+          <button class="btn btn-primary" type="submit" id="save-entry">
+            <svg class="icon"><use href="#i-check"></use></svg><span>保存题目</span>
+          </button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="modal review-modal" id="review-dialog">
+    <div class="modal-card review-card"><div id="review-content"></div></div>
+  </dialog>
+
+  <dialog class="modal settings-modal" id="settings-dialog">
+    <div class="modal-card settings-card">
+      <header class="modal-head">
+        <div><p class="eyebrow">SETTINGS</p><h2>设置</h2></div>
+        <button class="icon-btn" type="button" data-close-dialog aria-label="关闭">
+          <svg class="icon"><use href="#i-x"></use></svg>
+        </button>
+      </header>
+      <div class="modal-body settings-body">
+        <section class="settings-section">
+          <h3>账号</h3>
+          <p class="settings-note">当前登录：<strong id="account-name">—</strong> · <span id="account-role">用户</span></p>
+          <form id="password-form" class="settings-form" novalidate>
+            <label class="form-field"><span>当前密码</span><input id="password-current" type="password" autocomplete="current-password"></label>
+            <div class="form-row two">
+              <label class="form-field"><span>新密码</span><input id="password-new" type="password" autocomplete="new-password" minlength="8"></label>
+              <label class="form-field"><span>再输一次</span><input id="password-confirm" type="password" autocomplete="new-password" minlength="8"></label>
+            </div>
+            <button class="btn btn-primary btn-sm" type="submit">修改密码</button>
+          </form>
+        </section>
+
+        <section class="settings-section">
+          <h3>AI 引擎</h3>
+          <p class="settings-note">没有上传解析的题会自动调用 AI；每道题也可以继续追问。API Key 只保存在服务器上。</p>
+          <div class="settings-actions">
+            <a class="btn btn-primary btn-sm" href="/admin" data-admin-only>
+              <svg class="icon"><use href="#i-spark"></use></svg><span>打开 AI 管理页</span>
+            </a>
+            <span class="settings-inline-note" id="ai-user-note" hidden>AI 由管理员统一配置。</span>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>数据与备份</h3>
+          <p class="settings-note">导出只包含你账号下的题目；服务器备份仅管理员可创建。</p>
+          <div class="settings-actions">
+            <button class="btn btn-ghost btn-sm" id="settings-export" type="button">
+              <svg class="icon"><use href="#i-download"></use></svg><span>导出我的 JSON</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="settings-import" type="button">
+              <svg class="icon"><use href="#i-upload"></use></svg><span>导入备份</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="settings-backup" type="button" data-admin-only>
+              <svg class="icon"><use href="#i-layers"></use></svg><span>创建服务器备份</span>
+            </button>
+          </div>
+          <p class="settings-meta" id="settings-backup-meta"></p>
+        </section>
+
+        <section class="settings-section">
+          <h3>快捷键</h3>
+          <dl class="shortcut-list">
+            <div><dt><kbd>N</kbd></dt><dd>新建题目</dd></div>
+            <div><dt><kbd>/</kbd></dt><dd>聚焦搜索</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>关闭弹窗</dd></div>
+            <div><dt><kbd>Ctrl</kbd> + <kbd>Enter</kbd></dt><dd>保存题目</dd></div>
+          </dl>
+        </section>
+
+        <section class="settings-section about-section">
+          <h3>关于</h3>
+          <p class="settings-note">Mathline v<span id="about-version">{{ app_version }}</span> · 部署于 math.dogeeer.cn。数据保存在自己的服务器上。</p>
+          <div class="settings-actions">
+            <button class="btn btn-ghost btn-sm" id="logout-btn" type="button">
+              <svg class="icon"><use href="#i-log-out"></use></svg><span>退出登录</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" id="logout-all-btn" type="button">
+              <svg class="icon"><use href="#i-lock"></use></svg><span>退出所有设备</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="modal confirm-modal" id="confirm-dialog">
+    <div class="modal-card confirm-card">
+      <span class="confirm-icon"><svg class="icon"><use href="#i-alert"></use></svg></span>
+      <h3 id="confirm-title">确认操作</h3>
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" id="confirm-cancel" type="button">取消</button>
+        <button class="btn btn-danger" id="confirm-ok" type="button">确定</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="lightbox" id="lightbox-dialog">
+    <button class="lightbox-close" type="button" aria-label="关闭"><svg class="icon"><use href="#i-x"></use></svg></button>
+    <img id="lightbox-image" alt="题目图片">
+  </dialog>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+
+  <script src="{{ url_for('static', filename='vendor/katex/katex.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='vendor/katex/contrib/auto-render.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}" defer></script>
+</body>
+</html>
