@@ -49,6 +49,7 @@
     selectMode: false,
     selected: new Set(),
     editor: null,
+    imageEditing: false,
     detail: null,
     review: null,
     confirmResolver: null,
@@ -2160,6 +2161,9 @@
   function openEditor(entry = null) {
     const dialog = $("#editor-dialog");
     const form = $("#entry-form");
+    for (const item of Object.values(state.editor?.attachments || {}).flat()) {
+      if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
+    }
     form.reset();
     clearMathPreviews();
     state.editor = {
@@ -2361,10 +2365,11 @@
       const zone = $(`#dz-${kind}`);
       const input = zone.querySelector('input[type="file"]');
       zone.addEventListener("click", (event) => {
-        if (event.target.closest(".dz-remove, .dz-add")) return;
+        if (event.target.closest("button, .dz-thumb")) return;
         input.click();
       });
       zone.addEventListener("keydown", (event) => {
+        if (event.target !== zone) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           input.click();
@@ -2399,7 +2404,7 @@
     });
 
     document.addEventListener("paste", (event) => {
-      if (!dialog.open) return;
+      if (!dialog.open || state.imageEditing) return;
       const files = Array.from(event.clipboardData ? event.clipboardData.files : []).filter((file) =>
         file.type.startsWith("image/")
       );
@@ -2410,7 +2415,7 @@
     });
 
     document.addEventListener("keydown", (event) => {
-      if (!dialog.open) return;
+      if (!dialog.open || state.imageEditing) return;
       if ((event.ctrlKey || event.metaKey) && (event.key === "Enter" || event.key === "s")) {
         event.preventDefault();
         saveEditor();
@@ -2623,7 +2628,10 @@
       renderAttachments(kind);
       prepareImage(file)
         .then((prepared) => {
-          if (state.editor !== editor) return;
+          if (state.editor !== editor || !editor.attachments[kind].includes(placeholder)) {
+            if (prepared.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prepared.previewUrl);
+            return;
+          }
           Object.assign(placeholder, prepared, { loading: false, kind });
           renderAttachments(kind);
           markDirty();
@@ -2719,6 +2727,35 @@
     });
   }
 
+  async function openAttachmentEditor(item, kind) {
+    const editor = state.editor;
+    if (!editor || editor.saving || item.loading || state.imageEditing) return;
+    state.imageEditing = true;
+    try {
+      const result = await window.MathImageEditor.open({
+        src: item.data || item.url || item.previewUrl,
+        name: item.name,
+        show: openDialog, close: closeDialog,
+        isCurrent: () => state.editor === editor && $("#editor-dialog").open,
+      });
+      if (!result) return;
+      if (state.editor !== editor || !editor.attachments[kind].includes(item)) {
+        URL.revokeObjectURL(result.previewUrl);
+        return;
+      }
+      if (item.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(item.previewUrl);
+      Object.assign(item, result);
+      if (kind === "problem") editor.ocrText = "";
+      renderAttachments(kind);
+      markDirty();
+      toast("图片已调整，保存题目后生效", "success", 2200);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      state.imageEditing = false;
+    }
+  }
+
   function renderAttachments(kind) {
     if (!state.editor) return;
     const zone = $(`#dz-${kind}`);
@@ -2727,14 +2764,21 @@
     const list = state.editor.attachments[kind];
     for (const item of list) {
       const thumb = el("div", { class: `dz-thumb${item.loading ? " is-loading" : ""}` });
+      const edit = el("button", {
+        class: "dz-edit", type: "button", disabled: Boolean(item.loading),
+        "aria-label": `裁剪或旋转${kind === "problem" ? "题目" : "解析"}图片：${item.name || "图片"}`,
+        onclick: (event) => { event.stopPropagation(); openAttachmentEditor(item, kind); },
+      });
       if (item.previewUrl || item.thumb || item.url) {
-        thumb.appendChild(
+        edit.appendChild(
           el("img", {
             src: item.previewUrl || item.thumb || item.url,
             alt: item.name || "图片",
           })
         );
       }
+      edit.appendChild(el("span", { class: "dz-edit-label", text: "裁剪 / 旋转" }));
+      thumb.appendChild(edit);
       const remove = el(
         "button",
         {
@@ -2820,7 +2864,7 @@
   }
 
   async function saveEditor() {
-    if (!state.editor || state.editor.saving) return;
+    if (!state.editor || state.editor.saving || state.imageEditing) return;
     let payload;
     try {
       payload = collectEditorPayload();

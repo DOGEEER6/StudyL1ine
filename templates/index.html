@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/minimal.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/notebook.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/image-editor.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
@@ -548,6 +549,41 @@
     </div>
   </dialog>
 
+  <dialog class="modal image-editor-modal" id="image-editor-dialog" aria-labelledby="image-editor-title">
+    <div class="modal-card image-editor-card">
+      <header class="modal-head">
+        <div><h2 id="image-editor-title">裁剪与旋转</h2><p class="crop-hint">拖动四角调整范围，拖动中间移动选区</p></div>
+        <button class="icon-btn" type="button" data-crop-cancel aria-label="取消图片编辑"><svg class="icon"><use href="#i-x"></use></svg></button>
+      </header>
+      <div class="crop-workspace" id="crop-workspace">
+        <div class="crop-surface" id="crop-surface">
+          <canvas id="crop-canvas" aria-label="待编辑图片"></canvas>
+          <div class="crop-box" id="crop-box" tabindex="0" role="group" aria-label="裁剪区域，方向键移动，按住 Shift 精细调整">
+            <div class="crop-grid" aria-hidden="true"></div>
+            <button type="button" class="crop-handle nw" data-crop-handle="nw" aria-label="调整左上角"></button>
+            <button type="button" class="crop-handle ne" data-crop-handle="ne" aria-label="调整右上角"></button>
+            <button type="button" class="crop-handle sw" data-crop-handle="sw" aria-label="调整左下角"></button>
+            <button type="button" class="crop-handle se" data-crop-handle="se" aria-label="调整右下角"></button>
+          </div>
+        </div>
+      </div>
+      <div class="crop-controls">
+        <div class="crop-rotate-buttons">
+          <button class="btn btn-ghost" id="crop-left" type="button">↶ 左转 90°</button>
+          <button class="btn btn-ghost" id="crop-right" type="button">↷ 右转 90°</button>
+          <button class="text-btn" id="crop-reset" type="button">重置</button>
+        </div>
+        <span id="crop-size" aria-live="polite"></span>
+      </div>
+      <p class="crop-error" id="crop-error" role="alert" hidden></p>
+      <footer class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-crop-cancel>取消</button>
+        <span class="crop-save-note">应用后，保存题目才会生效</span>
+        <button class="btn btn-primary" id="crop-apply" type="button">应用修改</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog class="modal confirm-modal" id="confirm-dialog">
     <div class="modal-card confirm-card">
       <span class="confirm-icon"><svg class="icon"><use href="#i-alert"></use></svg></span>
@@ -570,6 +606,7 @@
 
   <script src="{{ url_for('static', filename='vendor/katex/katex.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='vendor/katex/contrib/auto-render.min.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/image-editor.js') }}?v={{ asset_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}" defer></script>
 </body>
 </html>

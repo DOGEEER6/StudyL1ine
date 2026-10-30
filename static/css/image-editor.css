@@ -1,0 +1,47 @@
+.dz-thumb { width: 132px; height: 112px; }
+.solution-switch { position: relative; }
+.solution-switch input { width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip-path: inset(50%); }
+.solution-switch:focus-within .switch { outline: 2px solid var(--violet); outline-offset: 3px; }
+.dz-edit { display: block; padding: 0; width: 100%; height: 100%; border: 0; background: #edf4fc; cursor: pointer; }
+.dz-thumb .dz-edit img { display: block; height: 82px; object-fit: contain; }
+.dz-edit-label { display: block; height: 30px; padding: 4px; background: #e5f1ff; color: #1659ad; font-size: 12px; font-weight: 600; }
+.dz-thumb .dz-name { display: none; }
+.dz-thumb .dz-remove { z-index: 2; width: 30px; height: 30px; top: 2px; right: 2px; background: #243e59e6; }
+.dz-thumb .dz-remove .icon { width: 16px; height: 16px; }
+.image-editor-card { width: min(860px, 100%); height: min(800px, calc(100dvh - 36px)); }
+.image-editor-card .modal-head { align-items: flex-start; }
+.crop-hint { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.crop-workspace { display: flex; flex: 1 1 auto; min-height: 120px; align-items: center; justify-content: center; background: #233449; overflow: hidden; }
+.crop-surface { position: relative; flex: 0 0 auto; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+#crop-canvas { display: block; width: 100%; height: 100%; }
+.crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 300vmax #0e1b2b9c; cursor: move; touch-action: none; outline-offset: -5px; }
+.crop-box:focus-visible { outline-color: #ffce70; }
+.crop-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, transparent calc(33.333% - .5px), #ffffff70 33.333%, transparent calc(33.333% + .5px), transparent calc(66.667% - .5px), #ffffff70 66.667%, transparent calc(66.667% + .5px)), linear-gradient(to bottom, transparent calc(33.333% - .5px), #ffffff70 33.333%, transparent calc(33.333% + .5px), transparent calc(66.667% - .5px), #ffffff70 66.667%, transparent calc(66.667% + .5px)); }
+.crop-handle { position: absolute; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; touch-action: none; }
+.crop-handle::after { content: ""; position: absolute; width: 13px; height: 13px; border: 3px solid #fff; background: #2476dc; border-radius: 3px; }
+.crop-handle.nw { top: 0; left: 0; cursor: nwse-resize; }
+.crop-handle.ne { top: 0; right: 0; cursor: nesw-resize; }
+.crop-handle.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.crop-handle.se { bottom: 0; right: 0; cursor: nwse-resize; }
+.crop-handle.nw::after { top: 2px; left: 2px; }
+.crop-handle.ne::after { top: 2px; right: 2px; }
+.crop-handle.sw::after { bottom: 2px; left: 2px; }
+.crop-handle.se::after { bottom: 2px; right: 2px; }
+.crop-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line-soft); background: #fff; flex: 0 0 auto; }
+.crop-rotate-buttons { display: flex; align-items: center; gap: 8px; }
+.crop-rotate-buttons .btn { font-size: 13px; min-height: 42px; }
+.crop-rotate-buttons .text-btn { padding: 10px 8px; font-size: 13px; }
+#crop-size { white-space: nowrap; font-size: 12px; color: var(--muted); }
+.crop-save-note { font-size: 12px; color: var(--muted); text-align: center; }
+.crop-error { padding: 8px 20px; color: var(--wrong); font-size: 13px; background: var(--wrong-soft); }
+@media (max-width: 760px) {
+  .image-editor-card { width: 100%; height: 100%; max-height: 100%; border: 0; border-radius: 0; }
+  .image-editor-card .modal-head h2 { font-size: 20px; }
+  .crop-hint { max-width: 270px; font-size: 12px; }
+  .crop-controls { flex-wrap: wrap; justify-content: center; padding: 10px 12px; gap: 4px 10px; }
+  .crop-rotate-buttons { justify-content: center; width: 100%; }
+  #crop-size { font-size: 11px; }
+  .image-editor-card .modal-foot { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
+  .crop-save-note { font-size: 10px; line-height: 1.5; }
+  .image-editor-card .modal-foot .btn { padding: 8px 12px; }
+}
