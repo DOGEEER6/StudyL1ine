@@ -33,7 +33,7 @@
     $("learning-due").textContent=data.due;
     $("learning-topics").textContent=data.knowledge.length;
     const percent=data.total?Math.round(data.mastered/data.total*100):0;
-    $("learning-percent").textContent=`${percent}%`;
+    $("learning-percent").textContent=data.total?`${percent}%`:"—";
     $("learning-donut").setAttribute("aria-label",data.total?`${data.total} 道题，已掌握 ${data.mastered} 道，占 ${percent}%`:"暂无题目");
     let angle=0; const stops=[];
     const legend=$("learning-legend"); legend.replaceChildren();
@@ -56,7 +56,7 @@
       const added=node("i","added"), reviewed=node("i","reviewed");
       added.style.height=`${total?day.added/total*100:0}%`; reviewed.style.height=`${total?day.reviewed/total*100:0}%`;
       column.append(added,reviewed);
-      button.append(node("span","bar-value",total||""),column,node("span","bar-date",i%2===0||i===days.length-1?day.date.slice(5).replace("-","/"):""));
+      button.append(node("span","bar-value",total||""),column,node("span","bar-date",(i%3===0&&i<days.length-2)||i===days.length-1?day.date.slice(5).replace("-","/"):""));
       button.addEventListener("click",()=>$("learning-bar-detail").textContent=detail);
       bars.append(button);
     }

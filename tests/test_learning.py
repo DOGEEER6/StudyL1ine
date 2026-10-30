@@ -63,6 +63,7 @@ class LearningTests(unittest.TestCase):
         response=json.dumps({**RESULT,'knowledge_points':['导数与微分']},ensure_ascii=False)
         with self.assertRaises(app.AIError): app.parse_analysis_json(response,'analysis',True)
         with self.assertRaises(app.AIError): app.parse_analysis_json('{"answer":"1","solution":"x"}','analysis',False)
+        self.assertEqual(len(app.image_content(['题干'],['image']*8)),9)
     def test_learning_scores_empty_states_and_user_isolation(self):
         first=self.entry(tags=['导数与微分'],chapter='一元函数微分学')
         second=self.entry(tags=['导数与微分'],status='mastered',chapter='一元函数微分学')

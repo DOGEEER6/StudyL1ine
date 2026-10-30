@@ -990,6 +990,15 @@
     top.appendChild(star);
     card.appendChild(top);
 
+    if (entry.has_solution && entry.solution && ["pending", "generating", "error", "unconfigured"].includes(entry.ai_status)) {
+      const pending = ["pending", "generating"].includes(entry.ai_status);
+      const notice = el("div", { class: pending ? "ai-pending" : "ai-error" },
+        iconEl(pending ? "refresh" : "alert"),
+        el("span", { text: pending ? "正在自动解析并整理知识点…" : entry.ai_error || "自动处理暂未完成" }));
+      if (!pending) notice.appendChild(el("button", { class: "text-btn", type: "button", "data-action": "ai-retry" }, "重试"));
+      card.appendChild(notice);
+    }
+
     // Title
     const title = el("h3", { class: "entry-title", text: entry.title || "未命名题目" });
     renderMath(title);

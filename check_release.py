@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='math-notes-qa-') as data:
     assert updated.status_code == 200
     review = client.post('/api/entries/'+entry_id+'/review', json={'result':'good','note':'回归检查'}, headers=headers)
     assert review.status_code == 200 and review.json['entry']['review_count'] == 1
-    for path in ['/', '/login', '/admin', '/print', '/static/css/notebook.css', '/static/js/app.js', '/static/js/image-editor.js', '/static/css/image-editor.css']:
+    for path in ['/', '/login', '/admin', '/print', '/learning', '/api/learning', '/static/css/learning.css', '/static/js/learning.js', '/static/css/notebook.css', '/static/js/app.js', '/static/js/image-editor.js', '/static/css/image-editor.css']:
         response = client.get(path)
         assert response.status_code in (200,302), (path,response.status_code)
     db = app.connect_db()

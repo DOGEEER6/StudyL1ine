@@ -1408,7 +1408,7 @@ def image_content(parts: list[str], data_urls: list[str]) -> str | list[dict]:
     if not data_urls:
         return "\n".join(parts)
     content: list[dict] = [{"type": "text", "text": "\n".join(parts)}]
-    for url in data_urls[:4]:
+    for url in data_urls[:MAX_ATTACHMENTS]:
         content.append({"type": "image_url", "image_url": {"url": url}})
     return content
 
