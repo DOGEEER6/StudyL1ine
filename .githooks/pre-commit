@@ -1,0 +1,8 @@
+#!/bin/sh
+if [ -x .venv/bin/python ]; then
+  exec .venv/bin/python scripts/check-staged.py
+elif command -v python3 >/dev/null 2>&1; then
+  exec python3 scripts/check-staged.py
+else
+  exec python scripts/check-staged.py
+fi

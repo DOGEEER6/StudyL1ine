@@ -1,0 +1,8 @@
+# Math Notes contributor instructions
+
+- This project uses Git. Record each completed, independently reviewable code change as a separate descriptive commit after appropriate verification. Before ending a change task, inspect `git status` and `git diff`, commit the authorized source changes, and synchronize `origin/main` when working on main. Do not mix unrelated changes or include unfinished user work.
+- Read `docs/VERSION_CONTROL.md` before changing deployment or repository configuration. Keep source in sync with the deployed version; do not overwrite another checkout's uncommitted changes. Use normal fast-forward pulls; never force-push or rewrite published history unless the user specifically requests it.
+- Never commit `.env`, real credentials, API keys, database files, uploads, logs, releases, or private user data. Keep machine-specific Caddy configuration out of this app repository. Do not print credentials in tool output.
+- Run appropriate checks. For changes to entries, AI, subjects, or database migrations, use `python tests/test_subjects.py`, `python tests/test_learning.py`, and `python check_release.py`, all of which use isolated temporary databases. For image editing, also run `node tests/image-editor.test.cjs`. Never import the production app in a diagnostic process against the live database; import triggers startup migrations and AI job recovery.
+- Back up before database upgrades. Preserve existing questions, attachments, reviews, and conversations. Keep historical release backups intact.
+- UI preference: light blue, never green. Keep mobile bottom navigation and the user's supplied-solution policy intact.

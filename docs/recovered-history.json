@@ -1,0 +1,107 @@
+[
+  {
+    "archive": "releases/notebook-20261027-12C00v/before.tar.gz",
+    "sha256": "2eb65de64f93b1fef5c7f0285e6419ff86184de0bcfe62a9ed8ba95e38c1573d",
+    "commit": "0fbd15767310dbf5f5e9a8520a986a36d017cb10",
+    "recovered_files": 19,
+    "description": "原始页面与题库基线"
+  },
+  {
+    "archive": "releases/notebook-20261027-12C00v/release.tar.gz",
+    "sha256": "a8abadc849616a2c4efb6d5b08395daf8f04758d6fde838b71680389dc2d9152",
+    "commit": "5256ea21cd95193ab5aa78943d93971a0e2fac28",
+    "recovered_files": 22,
+    "description": "页面重构、手机导航与交互修复"
+  },
+  {
+    "archive": "releases/color-20261027-7kT3wj/before.tar.gz",
+    "sha256": "4dc68b70ce3906b051e51b90dc0681c6ab37192469b267ad35efbd3a39484908",
+    "commit": null,
+    "recovered_files": 6,
+    "description": "提亮前的发布检查点"
+  },
+  {
+    "archive": "releases/color-20261027-7kT3wj/release.tar.gz",
+    "sha256": "b15135aeab786b40538f61fe26dccf1bda4ffc2fbbe5396823d238bf53470493",
+    "commit": "8bed188ae15df7c4cccf4b5ec321d995677e1d26",
+    "recovered_files": 6,
+    "description": "页面提亮配色"
+  },
+  {
+    "archive": "releases/blue-20261027-Wr0yAL/before.tar.gz",
+    "sha256": "b4f5612d2ebaad8b06a7f34939df6d2dfcfbb268c1de6441b6031888d2871ba7",
+    "commit": null,
+    "recovered_files": 6,
+    "description": "浅蓝调整前的发布检查点"
+  },
+  {
+    "archive": "releases/blue-20261027-Wr0yAL/release.tar.gz",
+    "sha256": "c36d463c2ad35b639dae0380e9cbf67f3d91c9670b72fe572e5ae66011cc254b",
+    "commit": "9210a9ee1b971c020f40448d2311f56ca3be995b",
+    "recovered_files": 6,
+    "description": "改为浅蓝主题"
+  },
+  {
+    "archive": "releases/crop-20261027-GdrHJz/before.tar.gz",
+    "sha256": "1c32baee35f3d77c0436b447a9f92dafec65e22ce4aec7f1772c5d46e649f643",
+    "commit": null,
+    "recovered_files": 4,
+    "description": "图片编辑前的发布检查点"
+  },
+  {
+    "archive": "releases/crop-20261027-GdrHJz/release.tar.gz",
+    "sha256": "4cf3a4376fc0593b54997f34a135eae2afdaedc0de2da6db9ae6e3cd0a4ee3ee",
+    "commit": "0772fe03acbf8cb85b45d068f88d8be9e91396ba",
+    "recovered_files": 25,
+    "description": "题目图片裁剪与旋转"
+  },
+  {
+    "archive": "releases/study-20261027-lr3g2C/before.tar.gz",
+    "sha256": "e44e84dba43afc22603d0895880e3f3620a64e8fc943d2a7912291db3e637b79",
+    "commit": null,
+    "recovered_files": 8,
+    "description": "学习状况功能前的发布检查点"
+  },
+  {
+    "archive": "releases/study-20261027-lr3g2C/release.tar.gz",
+    "sha256": "8427c0e634a07dfeb81809047e85307dc0c4cb6d83384395e0c7044ef42bd04e",
+    "commit": "1ee8245af00682fdefe4d784a17dbb55694b0142",
+    "recovered_files": 32,
+    "description": "学习状况与自动识别初版"
+  },
+  {
+    "archive": "releases/study-20261027-lr3g2C/release-final.tar.gz",
+    "sha256": "67425dac31c812a09642c3362e281486e80dfd16109c1a7830e94a8bbf742eaa",
+    "commit": "f47a9b16f858ff5a66a4b585351051b856a4c94c",
+    "recovered_files": 32,
+    "description": "学习统计、知识点掌握与自动分类"
+  },
+  {
+    "archive": "releases/compact-20261027-ozUe1g/before.tar.gz",
+    "sha256": "3528d5293731a2379dd077c14e28bf89170c0455d4b0ff37315c8a13387b257d",
+    "commit": "7e9c158ad78720bc23a04a6e85dae84693439bb6",
+    "recovered_files": 8,
+    "description": "自动解析结构化输出与重试修复"
+  },
+  {
+    "archive": "releases/compact-20261027-ozUe1g/release.tar.gz",
+    "sha256": "c688d442e1c221f2bb2bed824a169b143dec4def096df306d9b0923cc512a0a3",
+    "commit": "5955db0f5a570ade3003756434b9a593789d81f6",
+    "recovered_files": 33,
+    "description": "首页概述卡片与自带解析识别策略"
+  },
+  {
+    "archive": "releases/subjects-20261028-L5iqlz/before.tar.gz",
+    "sha256": "2f288d6a8103ebbe286a4620a8a9d2b96676e554d81c4c2d9675233596cdacd9",
+    "commit": "1fde8e550b59596996a93f85bda824fc5251b952",
+    "recovered_files": 11,
+    "description": "自带解析提示与识别细节修复"
+  },
+  {
+    "archive": "releases/subjects-20261028-L5iqlz/subjects-release.tar.gz",
+    "sha256": "c7222d0c7f4722d39d2f63eb6d27bfd94ce1b8f73d427ac9bed56a86a91b75cc",
+    "commit": "4f69c8751cb0d0d4b85b46842906a634169e60da",
+    "recovered_files": 14,
+    "description": "科目管理发布包"
+  }
+]
