@@ -29,3 +29,6 @@ NUL
 Caddyfile*
 preview.py
 caddy/
+demo/screens/
+demo/render-data/
+demo/render-cache/

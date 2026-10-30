@@ -1,0 +1,21 @@
+[
+ {"section":"开场","title":"让错题，真正变成进步","subtitle":"数学错题本 · 从收集到掌握","shots":["03-home","24-learning-top"],"duration":7,"kind":"intro","tags":["拍照收题","自动整理","按时复习"]},
+ {"section":"账号与题库","title":"打开手机，就能开始","subtitle":"浏览器直接使用，账号拥有独立题库","shots":["01-login","02-register","03-home"],"duration":8,"tags":["账号登录","邀请码注册","个人题库"]},
+ {"section":"轻量时间线","title":"先看概述，按需展开","subtitle":"小卡片收好每道题，长题也不会挤满首页","shots":["41-collapse","40-expanded-card","08-detail"],"duration":8,"tags":["概述卡片","点击展开","再次收起"]},
+ {"section":"文字录题","title":"粘贴一道题，马上入库","subtitle":"文字、公式都能录入，手机底栏一键记题","shots":["04-add-empty","05-add-text","06-saved"],"duration":8,"tags":["文字输入","LaTeX 公式","自动整理"]},
+ {"section":"图片录题","title":"拍下来，省去手抄","subtitle":"上传题图，识别题干并保留原始图片","shots":["11-image-upload","15-image-saved","08-detail"],"duration":8,"tags":["图片上传","题干转文字","原图留档"]},
+ {"section":"图片处理","title":"裁得准，也转得正","subtitle":"调整取题范围，左右旋转，应用后再保存","shots":["12-crop-before","13-crop-after","14-rotate","11-image-upload"],"duration":8,"tags":["自由裁剪","90° 旋转","本地处理"]},
+ {"section":"识别与解析","title":"题目，自动理清楚","subtitle":"精简标题、章节、知识点，和题目一起整理","shots":["08-detail","40-expanded-card"],"duration":8,"tags":["知识点标题","章节归类","参考解答"]},
+ {"section":"尊重原有思路","title":"已有解析，保留你的","subtitle":"自带解析只识别归类，未提供时自动生成参考解答","shots":["16-manual-solution","08-detail"],"duration":8,"tags":["文字解析","解析图片","按内容自动处理"]},
+ {"section":"继续追问","title":"卡住的那一步，接着问","subtitle":"带上原题与已有解答，围绕一道题连续讨论","shots":["09-chat-question","10-chat-answer"],"duration":8,"tags":["题目上下文","连续对话","对话保存"]},
+ {"section":"自测练习","title":"先独立想，再对答案","subtitle":"练习模式隐藏解答，准备好了再展开","shots":["17-practice-hidden","18-practice-reveal"],"duration":8,"tags":["隐藏解答","独立练习","点击对答案"]},
+ {"section":"复习与反馈","title":"复习，不再凭感觉","subtitle":"看题回忆、对照解析，再记录这次掌握程度","shots":["19-review-question","20-review-answer","21-review-rated"],"duration":9,"tags":["到期复习","四档评分","下次复习计划"]},
+ {"section":"快速查找","title":"想找的题，少翻几页","subtitle":"按文字、科目、状态和知识点筛选，重点题随手标记","shots":["22-search","23-filter","33-selection"],"duration":8,"tags":["全文搜索","组合筛选","星标重点"]},
+ {"section":"学习状况","title":"把学习情况，放在眼前","subtitle":"掌握分布与近两周学习量，打开手机就能看","shots":["24-learning-top","25-learning-bars"],"duration":8,"tags":["掌握分布饼图","学习量柱状图","真实记录统计"]},
+ {"section":"足迹与薄弱项","title":"看见积累，也看见薄弱项","subtitle":"热力图记录学习足迹，知识点列表帮助安排复习","shots":["25-learning-bars","26-learning-heatmap","27-learning-topics"],"duration":9,"tags":["17 周热力图","知识点掌握","点击查看相关题"]},
+ {"section":"科目管理","title":"你的科目，由你来定","subtitle":"新增、改名，同步用于录题、筛选与学习统计","shots":["28-subjects","29-subject-add","30-subject-added","31-subject-edit"],"duration":9,"tags":["新增科目","编辑名称","账号独立保存"]},
+ {"section":"练习卷与数据","title":"选好题，继续练","subtitle":"生成有解答或无解答练习卷，支持打印、另存 PDF","shots":["33-selection","34-print","32-settings-data"],"duration":9,"tags":["选题组卷","JSON 导入导出","服务器备份"]},
+ {"section":"管理后台","title":"日常维护，一处管理","subtitle":"用户与空间、AI 配置，按模块清楚呈现","shots":["35-admin-overview","37-admin-users","36-admin-ai"],"duration":9,"tags":["用户管理","用量与空间","AI 引擎设置"]},
+ {"section":"运营与权限","title":"邀请码与公告，也备好了","subtitle":"管理员管理注册入口，发布弹窗和顶部公告","shots":["38-admin-invites","39-admin-announcement","32-settings-data"],"duration":8,"tags":["注册邀请码","两种公告","账号与数据设置"]},
+ {"section":"现在开始","title":"下一道错题，认真收好","subtitle":"math.dogeeer.cn","shots":["03-home","24-learning-top"],"duration":8,"kind":"outro","tags":["手机浏览器打开即可使用"]}
+]
