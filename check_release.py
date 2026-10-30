@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory(prefix='math-notes-qa-') as data:
     import app
     client = app.app.test_client()
     assert client.get('/api/entries').status_code == 401
-    assert client.get('/api/health').json['version'] == '1.8.0'
+    assert client.get('/api/health').json['version'] == app.APP_VERSION
     login = client.post('/api/login', json={'username':'admin','password':'Isolated-test-2026'})
     assert login.status_code == 200, login.json
     csrf = client.get('/api/me').json['csrf']

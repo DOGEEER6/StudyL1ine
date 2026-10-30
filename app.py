@@ -56,7 +56,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 # Paths & constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.8.0"
+APP_VERSION = "1.8.1"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("MATH_DATA_DIR", BASE_DIR / "data")).resolve()
 DB_PATH = DATA_DIR / "math.db"
