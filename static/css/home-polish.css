@@ -1,29 +1,29 @@
 /* Home: quiet surfaces, a single blue accent, and glass only on navigation. */
 body.app-page {
-  --paper: #f5f6f8;
-  --paper-deep: #eceef2;
+  --paper: #f2f7fd;
+  --paper-deep: #e8f1fb;
   --card: #fff;
-  --card-soft: #f7f8fa;
-  --ink: #1d2433;
-  --ink-2: #3f4a5c;
-  --ink-3: #566174;
-  --muted: #626d80;
-  --faint: #707b8d;
-  --line: #dfe3e9;
-  --line-soft: #e9ecf1;
-  --line-strong: #c4ccd7;
-  --violet: #1769d2;
-  --violet-2: #125cbf;
-  --violet-3: #1052ac;
-  --violet-soft: #edf4ff;
-  --analysis: #1769d2;
-  --analysis-deep: #165bb1;
-  --analysis-soft: #edf4ff;
+  --card-soft: #f7fbff;
+  --ink: #172b45;
+  --ink-2: #2f4762;
+  --ink-3: #4a6480;
+  --muted: #6b8199;
+  --faint: #7d93aa;
+  --line: #dbe8f6;
+  --line-soft: #e8f1fb;
+  --line-strong: #c8dcf2;
+  --violet: #2f7fd4;
+  --violet-2: #2a72c1;
+  --violet-3: #24639f;
+  --violet-soft: #e5f1ff;
+  --analysis: #2f7fd4;
+  --analysis-deep: #2a72c1;
+  --analysis-soft: #e5f1ff;
   --linear: #566b8b;
   --linear-deep: #405778;
   --linear-soft: #eff2f7;
-  --reviewing: #1769d2;
-  --reviewing-soft: #edf4ff;
+  --reviewing: #2f7fd4;
+  --reviewing-soft: #e5f1ff;
   --mastered: #526982;
   --mastered-soft: #f0f3f7;
   --unsolved: #8a632b;
@@ -32,15 +32,15 @@ body.app-page {
   --wrong-soft: #fcf0ef;
   --gold: #8a632b;
   --gold-soft: #faf4ea;
-  --shadow-sm: 0 2px 8px rgba(29,36,51,.025);
-  --shadow-md: 0 8px 28px rgba(29,36,51,.06);
-  --shadow-lg: 0 24px 80px rgba(29,36,51,.16);
+  --shadow-sm: 0 1px 3px rgba(38,84,136,.05);
+  --shadow-md: 0 2px 10px rgba(38,84,136,.07);
+  --shadow-lg: 0 18px 60px rgba(38,84,136,.16);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 body.app-page ::selection { background: #dceaff; color: #153d73; }
 body.app-page :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible {
-  outline: 3px solid #1769d2;
+  outline: 3px solid #2f7fd4;
   outline-offset: 3px;
 }
 body.app-page .topbar {
@@ -49,15 +49,15 @@ body.app-page .topbar {
   --tb-muted: var(--muted);
   --tb-accent: var(--violet);
   --tb-accent-soft: #edf4ff;
-  height: 72px;
-  padding-inline: clamp(20px, 3vw, 48px);
+  height: 64px;
+  padding-inline: clamp(16px, 2.4vw, 40px);
   border-color: rgba(29,36,51,.06);
   backdrop-filter: blur(24px) saturate(1.15);
   -webkit-backdrop-filter: blur(24px) saturate(1.15);
 }
 body.app-page .topbar .brand-mark {
   width: 38px; height: 38px; border-radius: 13px;
-  background: #edf4ff; color: #1769d2;
+  background: #e5f1ff; color: #2f7fd4;
   border: 1px solid #dce8fb;
 }
 body.app-page .topbar .brand-text strong { font-size: 17px; letter-spacing: .04em; }
@@ -103,12 +103,14 @@ body.app-page .ai-side-card { border-radius: 14px; border-color: var(--line); ba
 body.app-page .ai-side-icon { background: #edf4ff; color: var(--violet); }
 body.app-page .sidebar-foot { line-height: 1.8; }
 body.app-page .page-intro {
-  min-height: 155px; margin: 0 0 28px; padding: 12px 0 26px;
-  background: transparent; border: 0; border-bottom: 1px solid var(--line);
-  border-radius: 0; color: var(--ink); gap: 28px;
+  min-height: 0;
+  margin: 0 0 18px;
+  padding: 6px 2px 16px;
+  background: transparent;
+  border: 0;
 }
 body.app-page .page-intro .eyebrow { color: var(--muted); font-size: 12px; letter-spacing: .08em; }
-body.app-page .page-intro h1 { margin: 10px 0 12px; color: var(--ink); font-size: clamp(28px,3vw,36px); font-weight: 650; letter-spacing: -.04em; }
+body.app-page .page-intro h1 { margin: 10px 0 12px; color: var(--ink); font-size: clamp(24px,2.4vw,30px); font-weight: 650; letter-spacing: -.04em; }
 body.app-page .page-intro .intro-note { color: var(--muted); font-size: 14px; line-height: 1.7; }
 body.app-page .quick-panel { flex-shrink: 0; gap: 14px; }
 body.app-page .quick-actions #hero-add { display: inline-flex; }
