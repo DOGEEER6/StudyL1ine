@@ -813,25 +813,152 @@ def api_grade_history(entry_id):
 # ---------------------------------------------------------------------------
 # 代码题：在线编译运行 + AI 评分
 # ---------------------------------------------------------------------------
+_SAMPLE_IN = {"样例输入", "输入样例", "示例输入", "输入示例", "sampleinput"}
+_SAMPLE_OUT = {"样例输出", "输出样例", "示例输出", "输出示例", "sampleoutput"}
+_WEAK_IN = {"输入"}
+_WEAK_OUT = {"输出"}
+
+
+def _marker_kind(line):
+    """判断一行是不是样例区的标题行，返回 (kind, weak)。"""
+    text = str(line or "").strip()
+    if not text:
+        return None, False
+    text = re.sub(r"^[#>*\-—\s]+", "", text).rstrip("：: 　")
+    text = re.sub(r"\s*[#＃]?\s*\d+\s*$", "", text)        # 「样例输入 1」→「样例输入」
+    text = re.sub(r"[（(][^）)]*[)）]", "", text).strip()   # 去掉括号备注
+    key = text.replace(" ", "").replace("\u3000", "").lower()
+    if key in _SAMPLE_IN:
+        return "in", False
+    if key in _SAMPLE_OUT:
+        return "out", False
+    if key in _WEAK_IN:
+        return "in", True
+    if key in _WEAK_OUT:
+        return "out", True
+    return None, False
+
+
+def _sample_blocks(text, weak=False):
+    """把题面切成 [(kind, [行...])]，遇到空行就结束当前样例。"""
+    blocks = []
+    kind = None
+    lines = []
+    for raw in str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        found, is_weak = _marker_kind(raw)
+        if found:
+            if kind:
+                blocks.append((kind, lines))
+                kind, lines = None, []
+            if not is_weak or weak:
+                kind = found
+            continue
+        if kind is None:
+            continue
+        if raw.strip():
+            lines.append(raw.rstrip())
+        else:
+            blocks.append((kind, lines))
+            kind, lines = None, []
+    if kind:
+        blocks.append((kind, lines))
+    return blocks
+
+
+def _extract_sample_tests(text):
+    """先用「样例输入/样例输出」配对，再退回「输入：/输出：」。"""
+    for weak in (False, True):
+        blocks = _sample_blocks(text, weak=weak)
+        ins = [b[1] for b in blocks if b[0] == "in"]
+        outs = [b[1] for b in blocks if b[0] == "out"]
+        tests = []
+        for i in range(min(len(ins), len(outs))):
+            stdin = "\n".join(ins[i]).strip("\n")[:2000]
+            stdout = "\n".join(outs[i]).strip("\n")[:2000]
+            if stdin or stdout:
+                tests.append({"input": stdin, "output": stdout})
+        if tests:
+            return tests
+    return []
+
+
+CODE_EXTRACT_SYSTEM = (
+    "你负责从 C++ 题目文字里提取样例测试点。只返回 JSON："
+    "{\"tests\": [{\"input\": \"标准输入原文\", \"output\": \"期望输出原文\"}], \"note\": \"一句话说明\"}\n"
+    "规则：1) 只提取题面里真实给出的样例/示例/测试用例，没有就给空数组，绝不自己编测试数据。"
+    "2) input 是程序要从键盘(stdin)读到的原文，output 是期望输出原文，保留换行与空格。"
+    "3) 题目描述、解释、提示、数据范围都不是样例。4) 最多 8 组，不要代码围栏。"
+)
+
+
+@bp.post("/api/v3/code/extract")
+def api_code_extract():
+    """从题面里抽出「样例输入 / 样例输出」，没有样例时可选让 AI 再看一遍。"""
+    data = body()
+    text = str(data.get("requirement") or "")[:20000]
+    entry_id = str(data.get("entry_id") or "")
+    if not text.strip() and entry_id:
+        row = db().execute("SELECT problem, ocr_text FROM entries WHERE id=? AND user_id=?",
+                           (entry_id, uid())).fetchone()
+        if row:
+            text = (row["problem"] or row["ocr_text"] or "")[:20000]
+    if not text.strip():
+        fail("先把题目要求贴进来")
+    tests = _extract_sample_tests(text)
+    if tests:
+        return jsonify(ok=True, tests=tests[:8], mode="pattern",
+                       note="从题面识别到 %d 组样例" % len(tests))
+    if not data.get("use_ai"):
+        return jsonify(ok=True, tests=[], mode="pattern", note="题面里没找到「样例输入 / 样例输出」")
+
+    db_ = db()
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "solve")
+    messages = [
+        {"role": "system", "content": CODE_EXTRACT_SYSTEM},
+        {"role": "user", "content": text[:16000]},
+    ]
+    try:
+        reply, _model, _usage = core.call_ai({**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    parsed = _parse_grade(reply)
+    picked = []
+    for item in parsed.get("tests") or []:
+        if not isinstance(item, dict):
+            continue
+        stdin = str(item.get("input") or "").strip("\n")[:2000]
+        stdout = str(item.get("output") or "").strip("\n")[:2000]
+        if stdin or stdout:
+            picked.append({"input": stdin, "output": stdout})
+    note = str(parsed.get("note") or "") or ("AI 提取到 %d 组样例" % len(picked) if picked else "题面里没有可用的样例")
+    return jsonify(ok=True, tests=picked[:8], mode="ai", note=note)
+
+
 @bp.post("/api/v3/code/run")
 def api_code_run():
     data = body()
     source = str(data.get("source") or "")
-    tests = data.get("tests") or []
-    if not isinstance(tests, list):
-        fail("测试数据格式不正确")
-    tests = [t for t in tests if str((t or {}).get("input") or "").strip()
-             or str((t or {}).get("output") or "").strip()]
-    preview = not tests
-    if preview:
-        tests = [{"input": "", "output": ""}]
+    console = data.get("stdin") is not None
+    if console:
+        tests = [{"input": str(data.get("stdin") or "")[:4000], "output": ""}]
+        preview = False
+    else:
+        tests = data.get("tests") or []
+        if not isinstance(tests, list):
+            fail("测试数据格式不正确")
+        tests = [t for t in tests if str((t or {}).get("input") or "").strip()
+                 or str((t or {}).get("output") or "").strip()]
+        preview = not tests
+        if preview:
+            tests = [{"input": "", "output": ""}]
     try:
         result = judge.judge_cpp(source, tests)
     except judge.JudgeUnavailable as exc:
         fail(str(exc), 503)
     except ValueError as exc:
         fail(str(exc))
-    return jsonify(ok=True, preview=preview, **result)
+    return jsonify(ok=True, preview=preview, console=console, **result)
 
 
 @bp.post("/api/v3/code/save")

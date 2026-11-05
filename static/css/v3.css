@@ -125,3 +125,54 @@ body.v3-page {
 }
 
 .v3-brand em { font-style: normal; font-weight: 500; font-size: 12px; opacity: .7; letter-spacing: .02em; }
+
+/* 代码题：测试点操作行与控制台 */
+.test-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.console-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.console-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.console-label {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 12.5px;
+  color: var(--v3-muted);
+}
+
+.console-stdin {
+  min-height: 64px;
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.console-out {
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  min-height: 84px;
+  max-height: 340px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

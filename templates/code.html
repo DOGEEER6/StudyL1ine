@@ -20,7 +20,11 @@
       <div class="v3-field" style="margin-bottom:6px">
         <label>测试点（标准输入 → 期望输出）</label>
         <div id="test-list"></div>
-        <button class="v3-btn small" id="add-test" type="button">+ 添加测试点</button>
+        <div class="test-actions">
+          <button class="v3-btn small" id="add-test" type="button">+ 添加测试点</button>
+          <button class="v3-btn small ghost" id="extract-tests" type="button">从题面自动提取</button>
+          <span class="v3-muted" id="extract-hint"></span>
+        </div>
       </div>
     </section>
 
@@ -51,6 +55,21 @@ int main() {
   <section class="v3-card" id="review-card" hidden style="margin-top:16px">
     <h3 style="margin:0 0 8px;font-size:15px">AI 点评</h3>
     <div id="review-body"></div>
+  </section>
+
+  <section class="v3-card console-card" style="margin-top:16px">
+    <div class="console-head">
+      <h3>控制台</h3>
+      <span class="v3-muted">程序用 cin 读的每一行都写进下面的「键盘输入」，跑完这里会显示真实输出。</span>
+    </div>
+    <label class="console-label" for="console-stdin">键盘输入（标准输入，一行一个）</label>
+    <textarea class="v3-textarea console-stdin" id="console-stdin" spellcheck="false" placeholder="例如：&#10;3 5"></textarea>
+    <div class="test-actions" style="margin-top:8px">
+      <button class="v3-btn small primary" id="console-run" type="button">用这段输入运行</button>
+      <button class="v3-btn small ghost" id="console-clear" type="button">清空输出</button>
+      <span class="v3-muted" id="console-status"></span>
+    </div>
+    <pre class="console-out" id="console-out">（还没有运行）</pre>
   </section>
 </div>
 {% endblock %}
