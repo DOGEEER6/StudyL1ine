@@ -329,13 +329,39 @@
     box.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  var autoProblemHeight = 0;
+
   function autoSizeProblem() {
     var box = $("code-requirement");
+    if (!box) return;
+    // 用户自己拖过高度就不要再改，免得一打字又缩回去
+    if (box.dataset.manualHeight === "1") return;
     box.style.height = "auto";
-    var need = box.scrollHeight + 2;
-    var max = Math.round(window.innerHeight * 0.46);
-    box.style.height = Math.min(Math.max(need, 132), max) + "px";
-    box.style.overflowY = need > max ? "auto" : "hidden";
+    var need = box.scrollHeight + 4;
+    var max = Math.max(240, Math.round(window.innerHeight * 0.58));
+    var height = Math.min(Math.max(need, 132), max);
+    box.style.height = height + "px";
+    autoProblemHeight = height;
+    // 永远允许框内滚动：内容刚好装下时不会出现滚动条，装不下就能上下翻
+    box.style.overflowY = "auto";
+  }
+
+  function watchManualProblemResize() {
+    var box = $("code-requirement");
+    if (!box || box.dataset.manualWatch === "1") return;
+    box.dataset.manualWatch = "1";
+    box.addEventListener("pointerup", function () {
+      if (autoProblemHeight && Math.abs(box.clientHeight - autoProblemHeight) > 3) {
+        box.dataset.manualHeight = "1";
+        box.style.overflowY = "auto";
+      }
+    });
+    box.addEventListener("dblclick", function () {
+      // 双击恢复自动高度
+      delete box.dataset.manualHeight;
+      autoProblemHeight = 0;
+      autoSizeProblem();
+    });
   }
 
   /* ---------------- AI 出题练习 ---------------- */
@@ -659,6 +685,7 @@
   source.addEventListener("input", refreshGutter);
   source.addEventListener("scroll", function () { $("gutter").scrollTop = source.scrollTop; });
 
+  watchManualProblemResize();
   $("code-requirement").addEventListener("input", function () {
     autoSizeProblem();
     window.requestAnimationFrame(autoSizeProblem);

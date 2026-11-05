@@ -284,6 +284,7 @@ body.v3-page {
 }
 
 .ide-problem-text {
+  overflow-y: auto;
   display: block;
   width: 100%;
   min-height: 132px;
@@ -1082,4 +1083,21 @@ html {
 @media (max-width: 640px) {
   .ide-btn.practice-btn { padding: 7px 11px; }
   .beta-tag { font-size: 9px; padding: 1px 4px; }
+}
+
+/* 题目框内容超出时可上下翻，滚动条细一点，不抢视觉 */
+.ide-problem-text::-webkit-scrollbar {
+  width: 9px;
+}
+
+.ide-problem-text::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, .35);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.ide-problem-text::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, .55);
+  background-clip: content-box;
 }
