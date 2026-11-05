@@ -338,6 +338,10 @@ body.admin-page .topbar {
   opacity: 0.55;
 }
 
+.side-fold:not([open]) .side-fold-body {
+  display: none;
+}
+
 .side-fold-body {
   display: flex;
   flex-direction: column;
