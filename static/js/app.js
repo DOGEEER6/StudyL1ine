@@ -1455,7 +1455,7 @@
       }
       if (action === "review") {
         event.stopPropagation();
-        startReviewFor(id);
+        goReview(id);
         return;
       }
       if (action === "ai-retry") {
@@ -2374,7 +2374,7 @@
       } else if (action === "review") {
         const id = state.detail.id;
         closeDialog(dialog);
-        startReviewFor(id);
+        goReview(id);
       } else if (action === "reveal") {
         state.detailRevealed = true;
         renderDetail(state.detail, { revealed: true });
@@ -3313,62 +3313,9 @@
   // Review
   // ---------------------------------------------------------------------
 
-  async function startReviewFor(id) {
-    try {
-      const entry = await api(`/api/entries/${id}`);
-      state.review = {
-        queue: [entry],
-        index: 0,
-        entry,
-        revealed: false,
-        result: null,
-        note: "",
-        reviewed: 0,
-        total: 1,
-      };
-      openDialog($("#review-dialog"));
-      renderReview();
-    } catch (err) {
-      handleError(err);
-    }
-  }
-
-  async function startDueReview() {
-    try {
-      const data = await api("/api/entries?due=1&solutions=0&sort=due&limit=100");
-      const queue = data.entries || [];
-      if (!queue.length) {
-        state.review = {
-          queue: [],
-          index: 0,
-          entry: null,
-          revealed: false,
-          result: null,
-          note: "",
-          reviewed: 0,
-          total: 0,
-          empty: true,
-        };
-        openDialog($("#review-dialog"));
-        renderReview();
-        return;
-      }
-      state.review = {
-        queue,
-        index: 0,
-        entry: queue[0],
-        revealed: false,
-        result: null,
-        note: "",
-        reviewed: 0,
-        total: queue.length,
-        empty: false,
-      };
-      openDialog($("#review-dialog"));
-      renderReview();
-    } catch (err) {
-      handleError(err);
-    }
+  // 复习已经独立成页（/review），这里只做跳转，不再弹窗。
+  function goReview(entryId) {
+    location.href = entryId ? `/review?entry=${encodeURIComponent(entryId)}` : "/review";
   }
 
   async function ensureReviewEntryDetail() {
@@ -4162,7 +4109,7 @@
         } else if (stat === "due") {
           if (state.stats && state.stats.due > 0) {
             closeMobileSidebar();
-            startDueReview();
+            goReview();
             return;
           }
           toast(
@@ -4205,7 +4152,7 @@
       }
       if (state.stats.due > 0) {
         closeMobileSidebar();
-        startDueReview();
+        goReview();
         return;
       }
       toast("今天没有到期的题目，可以主动挑一道复习", "info");
@@ -4270,7 +4217,7 @@
     syncViewport();
     $("#sidebar-close").addEventListener("click", closeMobileSidebar);
     $("#mobile-add").addEventListener("click", () => openEditor());
-    $("#mobile-review").addEventListener("click", startDueReview);
+    $("#mobile-review").addEventListener("click", () => goReview());
     $("#mobile-settings").addEventListener("click", openSettings);
     $("#mobile-home").addEventListener("click", () => {
       closeMobileSidebar();
@@ -4301,7 +4248,7 @@
       button.addEventListener("click", (event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey) return;
         event.preventDefault();
-        startDueReview();
+        goReview();
       });
     });
     const navMenuBtn = $("#nav-menu-btn");
@@ -4466,7 +4413,7 @@
     await Promise.all([refreshStats(), loadEntries()]);
     loadAnnouncement();
     if (startupAction === "add") openEditor();
-    else if (startupAction === "review") startDueReview();
+    else if (startupAction === "review") goReview();
     else if (startupAction === "settings") openSettings();
   }
 

@@ -1,0 +1,24 @@
+{% extends 'v3_base.html' %}
+{% block title %}复习{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/review.css') }}?v={{ asset_version }}">{% endblock %}
+{% block body %}
+<div class="v3-title rv-title">
+  <div>
+    <h1>今天要复习的题</h1>
+    <p id="rv-sub">按遗忘曲线排好的顺序，先自己回忆，再看答案。</p>
+  </div>
+  <div class="rv-title-actions">
+    <span class="rv-progress" id="rv-progress"></span>
+    <a class="v3-btn" href="/learning">学习状况</a>
+  </div>
+</div>
+
+<div id="rv-root" class="rv-root">
+  <div class="v3-card rv-card" id="rv-card">
+    <div class="rv-loading">正在取今天到期的题目…</div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script src="{{ url_for('static', filename='js/v3-review.js') }}?v={{ asset_version }}"></script>
+{% endblock %}

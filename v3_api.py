@@ -1533,6 +1533,11 @@ def page_code():
     return _page("code.html", entry_id=request.args.get("entry", ""))
 
 
+@bp.get("/review")
+def page_review():
+    return _page("review.html")
+
+
 @bp.get("/explain/<entry_id>")
 def page_explain(entry_id):
     return _page("explain.html", entry_id=entry_id)

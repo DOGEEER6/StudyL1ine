@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v3.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
+  {% block head %}{% endblock %}
 </head>
 <body class="v3-page" data-entry-id="{{ entry_id|default('', true) }}">
   {% include 'icons.html' %}
