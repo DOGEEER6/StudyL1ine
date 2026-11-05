@@ -1,29 +1,18 @@
-/* 统一顶栏的行为：折叠分组、当前页高亮、用户名回填、管理入口可见性。
+/* 统一顶栏的行为：当前页高亮、用户名回填、管理入口可见性。
+   导航项全部平铺，不再有折叠菜单。
    首页另由 app.js 接管 #nav-review / #header-add / #open-settings 的点击。 */
 (function () {
-  function closeMenus(except) {
-    document.querySelectorAll(".nav-more[open]").forEach(function (node) {
-      if (node !== except) node.open = false;
-    });
-  }
-
   function markActive() {
     var here = location.pathname.replace(/\/+$/, "") || "/";
-    document.querySelectorAll(".nav-more-menu a").forEach(function (link) {
-      var href = link.getAttribute("href") || "";
-      if (href && href !== "/" && here.indexOf(href) === 0) link.classList.add("active");
-    });
     document.querySelectorAll(".topbar-nav .nav-link[href]").forEach(function (link) {
       var href = link.getAttribute("href") || "";
-      if (!href) return;
-      if (href === "/" && here === "/") link.classList.add("active");
-      else if (href !== "/" && href.indexOf("?") < 0 && here.indexOf(href) === 0) link.classList.add("active");
+      if (!href || href.indexOf("?") >= 0) return;
+      if (href === "/") {
+        if (here === "/") link.classList.add("active");
+        return;
+      }
+      if (here.indexOf(href) === 0) link.classList.add("active");
     });
-    var more = document.querySelector(".nav-more");
-    if (more && more.querySelector(".nav-more-menu a.active")) {
-      var summary = more.querySelector("summary");
-      if (summary) summary.classList.add("active");
-    }
   }
 
   function fillUser() {
@@ -32,7 +21,7 @@
     var name = (chip.getAttribute("data-user") || "").trim();
     if (!name) return;
     var label = document.getElementById("user-name");
-    if (label && (!label.textContent || label.textContent.trim() === "…")) label.textContent = name;
+    if (label && (!label.textContent || label.textContent.trim() === "\u2026")) label.textContent = name;
     var avatar = document.getElementById("user-avatar");
     if (avatar && !avatar.textContent.trim()) avatar.textContent = name.slice(0, 1).toUpperCase();
   }
@@ -52,14 +41,6 @@
     fillUser();
     applyAdmin();
   }
-
-  document.addEventListener("click", function (event) {
-    if (!event.target.closest(".nav-more")) closeMenus(null);
-  });
-
-  document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") closeMenus(null);
-  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
