@@ -4248,3 +4248,41 @@ html {
   white-space: nowrap;
   border: 0;
 }
+
+.quota-note {
+  margin: -2px 0 10px;
+  color: var(--muted, #6b7280);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 管理后台页脚 */
+.site-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 26px auto 20px;
+  padding: 0 4px;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+  letter-spacing: .01em;
+}
+
+.site-footer a {
+  color: var(--muted, #6b7280);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--ink, #1f2937);
+  text-decoration: underline;
+}
+
+.site-footer .footer-sep {
+  color: var(--line, #d7dce4);
+}
+
+.site-footer .footer-spacer {
+  flex: 1;
+}

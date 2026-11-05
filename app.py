@@ -1244,6 +1244,15 @@ def ai_usage_snapshot(db: sqlite3.Connection, user_id: str) -> dict:
     }
 
 
+def ai_quota_exempt(db: sqlite3.Connection, user_id: str) -> bool:
+    """管理员账号不做 AI 频次限制：额度照旧记进 ai_usage，方便看用量。
+
+    普通用户仍然走 每日/每小时/最小间隔 三道闸门。
+    """
+    row = db.execute("SELECT role FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(row and row["role"] == "admin")
+
+
 def check_ai_quota(
     db: sqlite3.Connection,
     user_id: str,
@@ -1253,6 +1262,15 @@ def check_ai_quota(
 ) -> dict:
     """Reserve one AI call before doing any billable network work."""
     snapshot = ai_usage_snapshot(db, user_id)
+    exempt = ai_quota_exempt(db, user_id)
+    snapshot["exempt"] = exempt
+    if exempt:
+        db.execute(
+            "INSERT INTO ai_usage (id, user_id, entry_id, kind, created_at) VALUES (?, ?, ?, ?, ?)",
+            (uuid.uuid4().hex, user_id, entry_id, kind[:24], now_utc()),
+        )
+        db.commit()
+        return snapshot
     if snapshot["daily_limit"] and snapshot["daily_used"] >= snapshot["daily_limit"]:
         raise ApiError(
             f"过去 24 小时 AI 调用已达上限（{snapshot['daily_limit']} 次），请稍后再试",
