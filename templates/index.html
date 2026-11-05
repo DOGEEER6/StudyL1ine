@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f5f6f8">
   <meta name="robots" content="noindex,nofollow">
-  <title>学线 LearnL1ne</title>
+  <title>StudyL1ne</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ asset_version }}">
@@ -151,11 +151,7 @@
           </button>
         </section>
 
-        <a class="ai-side-card" href="/admin" data-admin-only>
-          <span class="ai-side-icon">✦</span>
-          <span><strong>AI 引擎</strong><small>配置模型、API Key 与视觉识别</small></span>
-          <span class="ai-side-arrow">→</span>
-        </a>
+
 
         <p class="sidebar-foot">math.dogeeer.cn · v{{ app_version }}<br>数据保存在你的服务器上</p>
       </div>
@@ -503,9 +499,7 @@
           <h3>AI 引擎</h3>
           <p class="settings-note">没有上传解析的题会自动调用 AI；每道题也可以继续追问。API Key 只保存在服务器上。</p>
           <div class="settings-actions">
-            <a class="btn btn-primary btn-sm" href="/admin" data-admin-only>
-              <svg class="icon"><use href="#i-spark"></use></svg><span>打开 AI 管理页</span>
-            </a>
+
             <span class="settings-inline-note" id="ai-user-note" hidden>AI 由管理员统一配置。</span>
           </div>
         </section>
@@ -539,7 +533,7 @@
 
         <section class="settings-section about-section">
           <h3>关于</h3>
-          <p class="settings-note">LearnL1ne v<span id="about-version">{{ app_version }}</span> · 部署于 math.dogeeer.cn。数据保存在自己的服务器上。</p>
+          <p class="settings-note">StudyL1ne v<span id="about-version">{{ app_version }}</span> · 部署于 math.dogeeer.cn。数据保存在自己的服务器上。</p>
           <div class="settings-actions">
             <button class="btn btn-ghost btn-sm" id="logout-btn" type="button">
               <svg class="icon"><use href="#i-log-out"></use></svg><span>退出登录</span>
@@ -612,6 +606,6 @@
   <script src="{{ url_for('static', filename='vendor/katex/contrib/auto-render.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/image-editor.js') }}?v={{ asset_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/topbar.js') }}?v={{ asset_version }}" defer></script>
-  <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}-studyl1ne1" defer></script>
 </body>
 </html>

@@ -92,7 +92,7 @@
         "span",
         { class: "sheet-brand" },
         el("span", { text: "∫" }),
-        el("span", { text: "学线 LearnL1ne" })
+        el("span", { text: "StudyL1ne" })
       )
     );
     top.appendChild(el("span", { text: `PRACTICE SHEET · ${mode}` }));
@@ -179,7 +179,7 @@
 
   function buildFooter(entries) {
     const foot = el("footer", { class: "sheet-foot" });
-    foot.appendChild(el("span", { text: `学线 LearnL1ne · math.dogeeer.cn · ${todayText()}` }));
+    foot.appendChild(el("span", { text: `StudyL1ne · math.dogeeer.cn · ${todayText()}` }));
     foot.appendChild(el("span", { text: `共 ${entries.length} 道 · ${withSolutions ? "含解答" : "无解答"}` }));
     return foot;
   }

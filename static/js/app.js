@@ -1,5 +1,5 @@
 /* ==========================================================================
-   学线 LearnL1ne · 错题与复习
+   StudyL1ne · 错题与复习
    Vanilla JS front-end. No framework, no external requests.
    ========================================================================== */
 
@@ -455,7 +455,7 @@
       if (stats.ai_ready) {
         aiFoot.innerHTML = '<span class="ai-spark">✦</span> AI 自动解析已就绪';
       } else if (state.user && state.user.role === "admin") {
-        aiFoot.innerHTML = '<span class="ai-spark">✦</span> <a href="/admin">配置 AI 自动解析</a>';
+        aiFoot.innerHTML = '<span class="ai-spark">✦</span> AI 尚未配置';
       } else {
         aiFoot.innerHTML = '<span class="ai-spark">✦</span> AI 由管理员配置';
       }
@@ -1157,7 +1157,7 @@
           iconEl("spark"),
           el("span", { text: "还没有配置 AI，暂时不能自动生成解答。" }),
           state.user && state.user.role === "admin"
-            ? el("a", { href: "/admin", text: "去配置 →" })
+            ? el("span", { class: "settings-inline-note", text: "AI 尚未配置" })
             : el("span", { class: "settings-inline-note", text: "请联系管理员" }),
           el(
             "button",
@@ -1891,7 +1891,7 @@
             iconEl("spark"),
             el("span", { text: "AI 尚未配置，不能自动生成解答。" }),
             state.user && state.user.role === "admin"
-              ? el("a", { href: "/admin", text: "去管理页配置 →" })
+              ? el("span", { class: "settings-inline-note", text: "AI 尚未配置" })
               : el("span", { class: "settings-inline-note", text: "请联系管理员" }),
             el(
               "button",
