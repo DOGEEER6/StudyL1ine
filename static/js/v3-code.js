@@ -1,251 +1,401 @@
-/* v3-code.js — extracted from templates/code.html (CSP blocks inline scripts). */
+/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
 (function () {
   var entryId = document.body.dataset.entryId || "";
   var $ = function (id) { return document.getElementById(id); };
+  var INDENT = "    ";
 
+  /* ---------------- 编辑器 ---------------- */
+  function refreshGutter() {
+    var code = $("code-source");
+    var lines = code.value.split("\n").length;
+    var nums = [];
+    for (var i = 1; i <= lines; i += 1) nums.push(i);
+    $("gutter").textContent = nums.join("\n");
+    $("gutter").scrollTop = code.scrollTop;
+  }
+
+  function setSelection(start, end) {
+    var el = $("code-source");
+    el.selectionStart = start;
+    el.selectionEnd = end === undefined ? start : end;
+  }
+
+  function replaceRange(start, end, text) {
+    var el = $("code-source");
+    var before = el.value.slice(0, start);
+    var after = el.value.slice(end);
+    el.value = before + text + after;
+    setSelection(start + text.length);
+    refreshGutter();
+  }
+
+  function indentSelection(outdent) {
+    var el = $("code-source");
+    var start = el.selectionStart;
+    var end = el.selectionEnd;
+    var value = el.value;
+    var lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    var block = value.slice(lineStart, end);
+    var lines = block.split("\n");
+    var changed = lines.map(function (line) {
+      if (outdent) {
+        if (line.slice(0, INDENT.length) === INDENT) return line.slice(INDENT.length);
+        return line.replace(/^\s{1,4}/, "");
+      }
+      return INDENT + line;
+    });
+    var text = changed.join("\n");
+    el.value = value.slice(0, lineStart) + text + value.slice(end);
+    var delta = text.length - block.length;
+    setSelection(start + (outdent ? Math.max(-INDENT.length, delta) : INDENT.length), end + delta);
+    refreshGutter();
+  }
+
+  function handleEditorKeys(event) {
+    var el = event.target;
+    if (event.key === "Tab") {
+      event.preventDefault();
+      var multi = el.value.slice(el.selectionStart, el.selectionEnd).indexOf("\n") !== -1;
+      if (multi) {
+        indentSelection(event.shiftKey);
+        return;
+      }
+      if (event.shiftKey) {
+        var s = el.selectionStart;
+        var lineStart = el.value.lastIndexOf("\n", s - 1) + 1;
+        var before = el.value.slice(lineStart, s);
+        var strip = before.match(/^\s{1,4}$/) ? before.length : Math.min(INDENT.length, before.length - before.replace(/^\s+/, "").length);
+        if (strip > 0) replaceRange(s - strip, s, "");
+        return;
+      }
+      // 用 execCommand 插入可以保留撤销栈
+      if (document.execCommand && document.execCommand("insertText", false, INDENT)) {
+        refreshGutter();
+      } else {
+        replaceRange(el.selectionStart, el.selectionEnd, INDENT);
+      }
+      return;
+    }
+    if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      var pos = el.selectionStart;
+      var lineStart = el.value.lastIndexOf("\n", pos - 1) + 1;
+      var line = el.value.slice(lineStart, pos);
+      var indent = (line.match(/^[ \t]*/) || [""])[0];
+      var opens = /[{([]\s*$/.test(line);
+      var insert = "\n" + indent + (opens ? INDENT : "");
+      event.preventDefault();
+      if (document.execCommand && document.execCommand("insertText", false, insert)) {
+        refreshGutter();
+      } else {
+        replaceRange(pos, el.selectionEnd, insert);
+      }
+      return;
+    }
+    if (event.key === "}" && el.selectionStart === el.selectionEnd) {
+      var p = el.selectionStart;
+      var start = el.value.lastIndexOf("\n", p - 1) + 1;
+      var current = el.value.slice(start, p);
+      if (current && /^\s+$/.test(current) && current.length >= INDENT.length) {
+        event.preventDefault();
+        replaceRange(p - INDENT.length, p, "}");
+      }
+      return;
+    }
+    if (event.key === "F9") {
+      event.preventDefault();
+      runCode();
+    }
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      runCode();
+    }
+  }
+
+  /* ---------------- 面板切换 ---------------- */
+  function showTab(name) {
+    Array.prototype.forEach.call(document.querySelectorAll(".ide-tab"), function (tab) {
+      tab.classList.toggle("active", tab.dataset.tab === name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".ide-tabpane"), function (pane) {
+      pane.hidden = pane.dataset.pane !== name;
+    });
+  }
+
+  /* ---------------- 测试点 ---------------- */
   function testRow(input, output) {
-    var row = document.createElement('div');
-    row.className = 'test-row';
-    row.innerHTML = '<textarea class="v3-textarea" placeholder="输入（程序用 cin 读到的内容）" spellcheck="false"></textarea>' +
+    var row = document.createElement("div");
+    row.className = "test-row";
+    row.innerHTML = '<textarea class="v3-textarea" placeholder="输入（程序 cin 读到的内容）" spellcheck="false"></textarea>' +
       '<textarea class="v3-textarea" placeholder="期望输出" spellcheck="false"></textarea>' +
-      '<button class="v3-btn small ghost" type="button" title="删除">×</button>';
-    row.querySelectorAll('textarea')[0].value = input || '';
-    row.querySelectorAll('textarea')[1].value = output || '';
-    row.querySelector('button').addEventListener('click', function () { row.remove(); });
-    $('test-list').appendChild(row);
+      '<button class="ide-btn small ghost" type="button" title="删除">×</button>';
+    row.querySelectorAll("textarea")[0].value = input || "";
+    row.querySelectorAll("textarea")[1].value = output || "";
+    row.querySelector("button").addEventListener("click", function () { row.remove(); });
+    $("test-list").appendChild(row);
     return row;
   }
 
   function readTests() {
-    return Array.from(document.querySelectorAll('#test-list .test-row')).map(function (row) {
-      var t = row.querySelectorAll('textarea');
+    return Array.prototype.map.call(document.querySelectorAll("#test-list .test-row"), function (row) {
+      var t = row.querySelectorAll("textarea");
       return { input: t[0].value, output: t[1].value };
     }).filter(function (t) { return t.input.trim() || t.output.trim(); });
   }
 
   function fillTests(tests) {
-    var rows = Array.from(document.querySelectorAll('#test-list .test-row'));
-    var blank = rows.filter(function (row) {
-      var t = row.querySelectorAll('textarea');
-      return !t[0].value.trim() && !t[1].value.trim();
+    Array.prototype.forEach.call(document.querySelectorAll("#test-list .test-row"), function (row) {
+      var t = row.querySelectorAll("textarea");
+      if (!t[0].value.trim() && !t[1].value.trim()) row.remove();
     });
-    blank.forEach(function (row) { row.remove(); });
-    var existing = new Set(readTests().map(function (t) { return t.input + '\u0000' + t.output; }));
+    var existing = {};
+    readTests().forEach(function (t) { existing[t.input + "\u0000" + t.output] = 1; });
     tests.forEach(function (t) {
-      var key = (t.input || '') + '\u0000' + (t.output || '');
-      if (!existing.has(key)) {
+      var key = (t.input || "") + "\u0000" + (t.output || "");
+      if (!existing[key]) {
         testRow(t.input, t.output);
-        existing.add(key);
+        existing[key] = 1;
       }
     });
-    if (!document.querySelector('#test-list .test-row')) testRow('', '');
+    if (!document.querySelector("#test-list .test-row")) testRow("", "");
   }
 
   function hasContent(tests) {
     return tests.some(function (t) { return t.input.trim() || t.output.trim(); });
   }
 
+  /* ---------------- 输出 ---------------- */
   function consoleWrite(text) {
-    $('console-out').textContent = text;
+    $("console-out").textContent = text;
   }
 
-  function renderConsoleRun(res, stdinText) {
-    if (!res.compiled) {
-      consoleWrite('编译失败：\n' + (res.compile_error || '（没有错误信息）'));
-      $('console-status').textContent = '编译失败';
-      return;
-    }
-    var one = (res.results || [])[0] || {};
-    var lines = [];
-    if (stdinText) lines.push('$ 键盘输入\n' + stdinText + '\n');
-    lines.push('$ 程序输出');
-    lines.push(one.output || '（没有输出）');
-    if (one.stderr) lines.push('\n$ stderr\n' + one.stderr);
-    if (one.timeout) lines.push('\n（运行超时，已强制结束）');
-    lines.push('\n$ 退出码 ' + (one.exit === null || one.exit === undefined ? '—' : one.exit));
-    consoleWrite(lines.join('\n'));
-    $('console-status').textContent = '运行完成';
+  function status(summary, extra) {
+    $("run-summary").innerHTML = summary;
+    $("status-extra").textContent = extra || "";
   }
 
   function renderConsoleTests(res) {
     if (!res.compiled) {
-      consoleWrite('编译失败：\n' + (res.compile_error || '（没有错误信息）'));
+      consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
       return;
     }
     var lines = [];
     (res.results || []).forEach(function (r, i) {
-      lines.push('测试点 ' + (i + 1) + '：' + (r.ok ? '通过' : '未通过') + (r.timeout ? '（超时）' : ''));
-      lines.push('  输入：' + (r.input || '（空）'));
-      lines.push('  期望：' + (r.expected || '（空）'));
-      lines.push('  实际：' + (r.output || '（空）'));
-      if (r.stderr) lines.push('  stderr：' + r.stderr);
+      lines.push("测试点 " + (i + 1) + "：" + (r.ok ? "通过" : "未通过") + (r.timeout ? "（超时）" : ""));
+      lines.push("  输入：" + (r.input || "（空）"));
+      lines.push("  期望：" + (r.expected || "（空）"));
+      lines.push("  实际：" + (r.output || "（空）"));
+      if (r.stderr) lines.push("  stderr：" + r.stderr);
     });
-    consoleWrite(lines.join('\n'));
+    consoleWrite(lines.join("\n"));
   }
 
+  /* ---------------- 动作 ---------------- */
   async function extractTests(useAi) {
-    var btn = $('extract-tests');
-    var requirement = $('code-requirement').value.trim();
+    var button = $("extract-tests");
+    var requirement = $("code-requirement").value.trim();
     if (!requirement && !entryId) {
-      V3.toast('先把题目要求贴进来', 'error');
+      V3.toast("先把题目要求贴进来", "error");
       return;
     }
-    btn.disabled = true;
-    $('extract-hint').textContent = useAi ? 'AI 正在读题面…' : '正在识别题面里的样例…';
+    button.disabled = true;
+    $("extract-hint").textContent = useAi ? "AI 正在读题面…" : "正在识别题面里的样例…";
     try {
-      var res = await V3.api('/api/v3/code/extract', {
-        method: 'POST',
+      var res = await V3.api("/api/v3/code/extract", {
+        method: "POST",
         body: { requirement: requirement, entry_id: entryId, use_ai: !!useAi }
       });
       if (!res.tests || !res.tests.length) {
-        if (!useAi) { btn.disabled = false; return extractTests(true); }
-        $('extract-hint').textContent = res.note || '题面里没有样例，手动加测试点吧';
+        if (!useAi) {
+          button.disabled = false;
+          return extractTests(true);
+        }
+        $("extract-hint").textContent = res.note || "题面里没有样例，手动加测试点吧";
         return;
       }
       fillTests(res.tests);
-      $('extract-hint').textContent = (res.note || '') + '（可以先核对一下再运行）';
-      V3.toast('已添加 ' + res.tests.length + ' 组测试点');
+      showTab("tests");
+      $("extract-hint").textContent = (res.note || "") + "（可以先核对再运行）";
+      V3.toast("已添加 " + res.tests.length + " 组测试点");
     } catch (err) {
-      $('extract-hint').textContent = '';
+      $("extract-hint").textContent = "";
       V3.fail(err);
     } finally {
-      btn.disabled = false;
+      button.disabled = false;
     }
   }
 
   async function runCode() {
-    var source = $('code-source').value;
     var tests = readTests();
-    $('run-code').disabled = true;
-    $('result-card').hidden = false;
-    $('run-summary').innerHTML = '<span class="v3-muted">编译并运行中…</span>';
-    $('run-detail').textContent = '';
+    $("run-code").disabled = true;
+    showTab("output");
+    status('<span class="v3-muted">编译并运行中…</span>');
+    consoleWrite("");
+    var started = Date.now();
     try {
-      var res = await V3.api('/api/v3/code/run', { method: 'POST', body: { source: source, tests: tests } });
+      var res = await V3.api("/api/v3/code/run", { method: "POST", body: { source: $("code-source").value, tests: tests } });
+      var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
       renderConsoleTests(res);
       if (!res.compiled) {
-        $('run-summary').innerHTML = '<span class="fail">编译失败</span>';
-        $('run-detail').textContent = res.compile_error || '';
+        status('<span class="fail">编译失败</span>', cost);
         return;
       }
       if (res.preview) {
         var one = res.results[0] || {};
-        $('run-summary').innerHTML = '<span class="pass">运行完成</span> <span class="v3-muted">（还没写测试点，只显示输出）</span>';
-        $('run-detail').textContent = '输出：' + (one.output || '（空）') +
-          (one.timeout ? '\n（运行超时）' : '') +
-          (one.stderr ? '\nstderr：' + one.stderr : '');
+        status('<span class="pass">运行完成</span> <span class="v3-muted">还没写测试点，只显示输出</span>', cost);
+        consoleWrite("$ 输出\n" + (one.output || "（没有输出）") +
+          (one.stderr ? "\n\n$ stderr\n" + one.stderr : "") +
+          (one.timeout ? "\n\n（运行超时）" : "") +
+          "\n\n$ 退出码 " + (one.exit === null || one.exit === undefined ? "—" : one.exit));
         return;
       }
       var pass = res.results.filter(function (r) { return r.ok; }).length;
-      $('run-summary').innerHTML = '<span class="' + (pass === res.results.length ? 'pass' : 'fail') + '">' +
-        pass + ' / ' + res.results.length + ' 个测试点通过</span>';
-      $('run-detail').textContent = res.results.map(function (r, i) {
-        return '测试点 ' + (i + 1) + '：' + (r.ok ? '通过' : '未通过') +
-          (r.timeout ? '（超时）' : '') +
-          '\n  输入：' + (r.input || '（空）') +
-          '\n  期望：' + (r.expected || '（空）') +
-          '\n  实际：' + (r.output || '（空）') +
-          (r.stderr ? '\n  stderr：' + r.stderr : '');
-      }).join('\n\n');
+      var allPass = pass === res.results.length;
+      status('<span class="' + (allPass ? "pass" : "fail") + '">' + pass + " / " + res.results.length + " 个测试点通过</span>", cost);
     } catch (err) {
-      $('run-summary').innerHTML = '<span class="fail">' + V3.esc(err.message) + '</span>';
-      consoleWrite('运行失败：' + err.message);
+      status('<span class="fail">' + V3.esc(err.message) + "</span>");
+      consoleWrite("运行失败：" + err.message);
     } finally {
-      $('run-code').disabled = false;
+      $("run-code").disabled = false;
     }
   }
 
   async function consoleRun() {
-    var btn = $('console-run');
-    var stdinText = $('console-stdin').value;
-    btn.disabled = true;
-    $('console-status').textContent = '编译并运行中…';
-    consoleWrite('');
+    var button = $("console-run");
+    var stdinText = $("console-stdin").value;
+    button.disabled = true;
+    showTab("output");
+    $("console-status").textContent = "编译并运行中…";
+    consoleWrite("");
+    var started = Date.now();
     try {
-      var res = await V3.api('/api/v3/code/run', {
-        method: 'POST',
-        body: { source: $('code-source').value, stdin: stdinText }
+      var res = await V3.api("/api/v3/code/run", {
+        method: "POST",
+        body: { source: $("code-source").value, stdin: stdinText }
       });
-      renderConsoleRun(res, stdinText);
+      var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
+      if (!res.compiled) {
+        consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
+        $("console-status").textContent = "编译失败";
+        status('<span class="fail">编译失败</span>', cost);
+        return;
+      }
+      var one = (res.results || [])[0] || {};
+      var lines = [];
+      if (stdinText) lines.push("$ 键盘输入\n" + stdinText + "\n");
+      lines.push("$ 程序输出\n" + (one.output || "（没有输出）"));
+      if (one.stderr) lines.push("\n$ stderr\n" + one.stderr);
+      if (one.timeout) lines.push("\n（运行超时，已强制结束）");
+      lines.push("\n$ 退出码 " + (one.exit === null || one.exit === undefined ? "—" : one.exit));
+      consoleWrite(lines.join("\n"));
+      $("console-status").textContent = "运行完成";
+      status('<span class="pass">运行完成</span>', cost);
     } catch (err) {
-      $('console-status').textContent = '运行失败';
-      consoleWrite('运行失败：' + err.message);
+      $("console-status").textContent = "运行失败";
+      consoleWrite("运行失败：" + err.message);
     } finally {
-      btn.disabled = false;
+      button.disabled = false;
     }
   }
 
   async function aiReview() {
-    $('ai-review').disabled = true;
-    $('review-card').hidden = false;
-    $('review-body').innerHTML = '<span class="v3-muted">AI 正在看你的代码…</span>';
+    $("ai-review").disabled = true;
+    showTab("review");
+    $("review-body").innerHTML = '<p class="v3-muted">AI 正在看你的代码…</p>';
     try {
-      var res = await V3.api('/api/v3/code/review', {
-        method: 'POST',
-        body: { source: $('code-source').value, requirement: $('code-requirement').value, entry_id: entryId }
+      var res = await V3.api("/api/v3/code/review", {
+        method: "POST",
+        body: { source: $("code-source").value, requirement: $("code-requirement").value, entry_id: entryId }
       });
       var r = res.review;
-      $('review-body').innerHTML = '<p style="margin:0 0 6px"><strong>' + r.score + ' 分</strong> · ' + V3.esc(r.verdict) + '</p>' +
-        (r.bugs && r.bugs.length ? '<ul>' + r.bugs.map(function (b) { return '<li>' + V3.esc(b) + '</li>'; }).join('') + '</ul>' : '') +
-        (r.style ? '<p class="v3-muted">风格：' + V3.esc(r.style) + '</p>' : '') +
-        (r.hint ? '<p class="v3-muted">下一步：' + V3.esc(r.hint) + '</p>' : '');
+      $("review-body").innerHTML = '<p style="margin:0 0 6px"><strong>' + r.score + " 分</strong> · " + V3.esc(r.verdict) + "</p>" +
+        (r.bugs && r.bugs.length ? "<ul>" + r.bugs.map(function (b) { return "<li>" + V3.esc(b) + "</li>"; }).join("") + "</ul>" : "") +
+        (r.style ? '<p class="v3-muted">风格：' + V3.esc(r.style) + "</p>" : "") +
+        (r.hint ? '<p class="v3-muted">下一步：' + V3.esc(r.hint) + "</p>" : "");
     } catch (err) {
-      $('review-body').innerHTML = '<p class="fail">' + V3.esc(err.message) + '</p>';
+      $("review-body").innerHTML = '<p class="fail">' + V3.esc(err.message) + "</p>";
     } finally {
-      $('ai-review').disabled = false;
+      $("ai-review").disabled = false;
     }
   }
 
-  $('add-test').addEventListener('click', function () { testRow('', ''); });
-  $('extract-tests').addEventListener('click', function () { extractTests(false); });
-  $('run-code').addEventListener('click', runCode);
-  $('console-run').addEventListener('click', consoleRun);
-  $('console-clear').addEventListener('click', function () {
-    consoleWrite('（还没有运行）');
-    $('console-status').textContent = '';
+  /* ---------------- 绑定 ---------------- */
+  var source = $("code-source");
+  source.addEventListener("keydown", handleEditorKeys);
+  source.addEventListener("input", refreshGutter);
+  source.addEventListener("scroll", function () { $("gutter").scrollTop = source.scrollTop; });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".ide-tab"), function (tab) {
+    tab.addEventListener("click", function () { showTab(tab.dataset.tab); });
   });
-  $('ai-review').addEventListener('click', aiReview);
-  $('save-code').addEventListener('click', async function () {
-    if (!entryId) { V3.toast('从错题详情进入才能保存', 'error'); return; }
+
+  $("toggle-problem").addEventListener("click", function () {
+    var app = document.querySelector(".ide-app");
+    var hidden = app.classList.toggle("problem-hidden");
+    $("toggle-problem").textContent = hidden ? "展开" : "收起";
+  });
+
+  $("add-test").addEventListener("click", function () { testRow("", ""); });
+  $("extract-tests").addEventListener("click", function () { extractTests(false); });
+  $("run-code").addEventListener("click", runCode);
+  $("console-run").addEventListener("click", consoleRun);
+  $("console-clear").addEventListener("click", function () {
+    consoleWrite("（还没有运行）");
+    $("console-status").textContent = "";
+  });
+  $("ai-review").addEventListener("click", aiReview);
+  $("save-code").addEventListener("click", async function () {
+    if (!entryId) {
+      V3.toast("从错题详情进入才能保存", "error");
+      return;
+    }
     try {
-      await V3.api('/api/v3/code/save', {
-        method: 'POST',
-        body: { entry_id: entryId, source: $('code-source').value, tests: readTests(), notes: $('code-requirement').value }
+      await V3.api("/api/v3/code/save", {
+        method: "POST",
+        body: { entry_id: entryId, source: $("code-source").value, tests: readTests(), notes: $("code-requirement").value }
       });
-      V3.toast('已保存');
-    } catch (err) { V3.fail(err); }
+      V3.toast("已保存");
+    } catch (err) {
+      V3.fail(err);
+    }
   });
+
   var autoTried = false;
-  $('code-requirement').addEventListener('blur', function () {
+  $("code-requirement").addEventListener("blur", function () {
     if (autoTried || hasContent(readTests())) return;
-    if (!$('code-requirement').value.trim()) return;
+    if (!$("code-requirement").value.trim()) return;
     autoTried = true;
     extractTests(false);
   });
 
+  refreshGutter();
+
   (async function () {
     try {
       await V3.boot();
-      var health = await V3.api('/api/v3/code/health');
-      $('judge-status').textContent = health.judge ? '判题环境就绪' : '判题镜像未安装';
-      $('judge-status').className = 'v3-chip ' + (health.judge ? 'ok' : 'warn');
+      var health = await V3.api("/api/v3/code/health");
+      $("judge-status").textContent = health.judge ? "判题环境就绪" : "判题镜像未安装";
+      $("judge-status").className = "v3-chip " + (health.judge ? "ok" : "warn");
       if (entryId) {
         try {
-          var entry = await V3.api('/api/v3/code/entry/' + entryId);
-          $('code-requirement').value = entry.problem || '';
-          if (entry.code) $('code-source').value = entry.code;
+          var entry = await V3.api("/api/v3/code/entry/" + entryId);
+          $("code-requirement").value = entry.problem || "";
+          if (entry.code) source.value = entry.code;
           if (entry.tests && entry.tests.length) {
             entry.tests.forEach(function (t) { testRow(t.input, t.output); });
           }
-          $('save-hint').textContent = '绑定题目：' + (entry.title || '');
-        } catch (err) { /* 普通演练模式 */ }
+          $("save-hint").textContent = "绑定题目：" + (entry.title || "");
+        } catch (err) {
+          /* 普通演练模式 */
+        }
       }
-      if (!document.querySelector('#test-list .test-row')) testRow('', '');
-      // 从错题进来且题面有样例时，自动把测试点填好
-      if (entryId && !hasContent(readTests()) && $('code-requirement').value.trim()) {
+      if (!document.querySelector("#test-list .test-row")) testRow("", "");
+      refreshGutter();
+      if (entryId && !hasContent(readTests()) && $("code-requirement").value.trim()) {
         autoTried = true;
         extractTests(false);
       }
-    } catch (err) { V3.fail(err); }
+    } catch (err) {
+      V3.fail(err);
+    }
   })();
 })();

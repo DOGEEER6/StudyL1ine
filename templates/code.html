@@ -1,41 +1,40 @@
 {% extends "v3_base.html" %}
-{% block title %}代码题{% endblock %}
+{% block title %}IDE{% endblock %}
 {% block mainclass %}wide{% endblock %}
 {% block body %}
-<div class="v3-title">
-  <div>
-    <h1>代码题：在线编译 + AI 评分</h1>
-    <p>把题目要求贴进来，写完代码直接跑测试点；判题在隔离容器里进行，出错不会影响网站。</p>
-  </div>
-  <span class="v3-chip" id="judge-status">检测判题环境…</span>
-</div>
+<div class="ide-app">
+  <header class="ide-head">
+    <div class="ide-head-left">
+      <h1>IDE</h1>
+      <span class="v3-muted">写 C++ · 在线编译 · 跑测试点</span>
+      <span class="v3-chip" id="judge-status">检测判题环境…</span>
+    </div>
+    <div class="ide-head-right">
+      <span class="v3-muted" id="save-hint"></span>
+    </div>
+  </header>
 
-<div class="code-layout">
-  <div class="v3-grid">
-    <section class="v3-card">
-      <div class="v3-field">
-        <label>题目要求（可以从错题里带入）</label>
-        <textarea class="v3-textarea" id="code-requirement" placeholder="例如：输入两个整数，输出它们的和。"></textarea>
+  <div class="ide-main" id="ide-main">
+    <aside class="ide-pane ide-problem" id="problem-pane">
+      <div class="ide-pane-head">
+        <span>题目描述</span>
+        <button class="ide-mini" id="toggle-problem" type="button" title="收起题目">收起</button>
       </div>
-      <div class="v3-field" style="margin-bottom:6px">
-        <label>测试点（标准输入 → 期望输出）</label>
-        <div id="test-list"></div>
-        <div class="test-actions">
-          <button class="v3-btn small" id="add-test" type="button">+ 添加测试点</button>
-          <button class="v3-btn small ghost" id="extract-tests" type="button">从题面自动提取</button>
-          <span class="v3-muted" id="extract-hint"></span>
-        </div>
-      </div>
-    </section>
+      <textarea class="ide-problem-text" id="code-requirement" spellcheck="false"
+        placeholder="把题目要求贴进来，或者从错题里带过来。&#10;&#10;题面里有「样例输入 / 样例输出」时，会自动变成测试点。"></textarea>
+    </aside>
 
-    <section class="v3-card">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-        <button class="v3-btn primary" id="run-code" type="button">运行</button>
-        <button class="v3-btn" id="ai-review" type="button">AI 点评</button>
-        <button class="v3-btn" id="save-code" type="button">保存到这道题</button>
-        <span class="v3-muted" id="save-hint"></span>
+    <section class="ide-pane ide-editor">
+      <div class="ide-toolbar">
+        <button class="ide-btn primary" id="run-code" type="button">运行 <kbd>F9</kbd></button>
+        <button class="ide-btn" id="ai-review" type="button">AI 点评</button>
+        <button class="ide-btn" id="save-code" type="button">保存</button>
+        <span class="ide-toolbar-hint">Tab 缩进 · Shift+Tab 反缩进 · Ctrl/⌘+Enter 运行</span>
       </div>
-      <textarea class="code-area" id="code-source" spellcheck="false">#include &lt;iostream&gt;
+      <div class="ide-editor-body">
+        <pre class="ide-gutter" id="gutter" aria-hidden="true">1</pre>
+        <textarea class="ide-code" id="code-source" spellcheck="false" wrap="off"
+          autocapitalize="off" autocomplete="off" autocorrect="off">#include &lt;iostream&gt;
 using namespace std;
 
 int main() {
@@ -43,34 +42,48 @@ int main() {
 
     return 0;
 }</textarea>
+      </div>
+    </section>
+
+    <section class="ide-pane ide-side">
+      <div class="ide-tabs" role="tablist">
+        <button class="ide-tab active" data-tab="tests" type="button">测试数据</button>
+        <button class="ide-tab" data-tab="output" type="button">输出</button>
+        <button class="ide-tab" data-tab="review" type="button">AI 点评</button>
+      </div>
+      <div class="ide-tabpane" data-pane="tests">
+        <div class="ide-tests-actions">
+          <button class="ide-btn small" id="add-test" type="button">+ 测试点</button>
+          <button class="ide-btn small ghost" id="extract-tests" type="button">从题面提取</button>
+        </div>
+        <p class="ide-hint" id="extract-hint">测试点的「输入」就是程序用 cin 读到的内容。</p>
+        <div id="test-list"></div>
+      </div>
+      <div class="ide-tabpane" data-pane="output" hidden>
+        <pre class="ide-console" id="console-out">（还没有运行）</pre>
+        <div class="ide-console-foot">
+          <textarea class="ide-stdin" id="console-stdin" spellcheck="false" placeholder="键盘输入：程序用 cin 读的内容，原样写在这里"></textarea>
+          <div class="ide-console-btns">
+            <button class="ide-btn small primary" id="console-run" type="button">用这段输入运行</button>
+            <button class="ide-btn small ghost" id="console-clear" type="button">清空</button>
+            <span class="ide-hint" id="console-status"></span>
+          </div>
+        </div>
+      </div>
+      <div class="ide-tabpane" data-pane="review" hidden>
+        <div id="review-body" class="ide-review">
+          <p class="ide-hint">点上方「AI 点评」，助教会看你的逻辑、边界和复杂度。</p>
+        </div>
+      </div>
     </section>
   </div>
 
-  <section class="v3-card" id="result-card" hidden style="margin-top:16px">
-    <h3 style="margin:0 0 8px;font-size:15px">运行结果</h3>
-    <div id="run-summary" style="margin-bottom:8px"></div>
-    <div class="run-result" id="run-detail"></div>
-  </section>
-
-  <section class="v3-card" id="review-card" hidden style="margin-top:16px">
-    <h3 style="margin:0 0 8px;font-size:15px">AI 点评</h3>
-    <div id="review-body"></div>
-  </section>
-
-  <section class="v3-card console-card" style="margin-top:16px">
-    <div class="console-head">
-      <h3>控制台</h3>
-      <span class="v3-muted">程序用 cin 读的每一行都写进下面的「键盘输入」，跑完这里会显示真实输出。</span>
-    </div>
-    <label class="console-label" for="console-stdin">键盘输入（标准输入，一行一个）</label>
-    <textarea class="v3-textarea console-stdin" id="console-stdin" spellcheck="false" placeholder="例如：&#10;3 5"></textarea>
-    <div class="test-actions" style="margin-top:8px">
-      <button class="v3-btn small primary" id="console-run" type="button">用这段输入运行</button>
-      <button class="v3-btn small ghost" id="console-clear" type="button">清空输出</button>
-      <span class="v3-muted" id="console-status"></span>
-    </div>
-    <pre class="console-out" id="console-out">（还没有运行）</pre>
-  </section>
+  <footer class="ide-statusbar">
+    <span id="run-summary">就绪</span>
+    <span class="ide-status-right">
+      <span id="status-extra"></span>
+    </span>
+  </footer>
 </div>
 {% endblock %}
 {% block script %}
