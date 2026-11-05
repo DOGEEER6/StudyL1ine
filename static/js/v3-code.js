@@ -1,4 +1,4 @@
-/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
+﻿/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
 (function () {
   var entryId = document.body.dataset.entryId || "";
   var currentEntry = entryId;
@@ -109,7 +109,7 @@
     }
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      runCode();
+      submitCode();
     }
   }
 
@@ -383,46 +383,13 @@
   }
 
   async function runCode() {
-    var tests = readTests();
-    $("run-code").disabled = true;
-    showTab("output");
-    status('<span class="v3-muted">编译并运行中…</span>');
-    consoleWrite("");
-    var started = Date.now();
-    try {
-      var res = await V3.api("/api/v3/code/run", { method: "POST", body: { source: $("code-source").value, tests: tests } });
-      var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
-      renderConsoleTests(res);
-      if (!res.compiled) {
-        status('<span class="fail">编译失败</span>', cost);
-        return;
-      }
-      if (res.preview) {
-        var one = res.results[0] || {};
-        status('<span class="pass">运行完成</span> <span class="v3-muted">还没写测试点，只显示输出</span>', cost);
-        consoleWrite("$ 输出\n" + (one.output || "（没有输出）") +
-          (one.stderr ? "\n\n$ stderr\n" + one.stderr : "") +
-          (one.timeout ? "\n\n（运行超时）" : "") +
-          "\n\n$ 退出码 " + (one.exit === null || one.exit === undefined ? "—" : one.exit));
-        return;
-      }
-      var pass = res.results.filter(function (r) { return r.ok; }).length;
-      var allPass = pass === res.results.length;
-      status('<span class="' + (allPass ? "pass" : "fail") + '">' + pass + " / " + res.results.length + " 个测试点通过</span>", cost);
-    } catch (err) {
-      status('<span class="fail">' + V3.esc(err.message) + "</span>");
-      consoleWrite("运行失败：" + err.message);
-    } finally {
-      $("run-code").disabled = false;
-    }
-  }
-
-  async function consoleRun() {
-    var button = $("console-run");
+    refreshGutter();
+    var button = $("run-code");
     var stdinText = $("console-stdin").value;
     button.disabled = true;
     showTab("output");
-    $("console-status").textContent = "编译并运行中…";
+    $("verdict-box").hidden = true;
+    status('<span class="v3-muted">编译并运行中…</span>');
     consoleWrite("");
     var started = Date.now();
     try {
@@ -433,7 +400,6 @@
       var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
       if (!res.compiled) {
         consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
-        $("console-status").textContent = "编译失败";
         status('<span class="fail">编译失败</span>', cost);
         return;
       }
@@ -446,13 +412,112 @@
       lines.push("\n$ 退出码 " + (one.exit === null || one.exit === undefined ? "—" : one.exit));
       consoleWrite(lines.join("\n"));
       $("console-status").textContent = "运行完成";
-      status('<span class="pass">运行完成</span>', cost);
+      status('<span class="pass">运行完成</span> <span class="v3-muted">只跑控制台输入，不评测测试点</span>', cost);
     } catch (err) {
-      $("console-status").textContent = "运行失败";
+      status('<span class="fail">' + V3.esc(err.message) + "</span>");
       consoleWrite("运行失败：" + err.message);
     } finally {
       button.disabled = false;
     }
+  }
+
+  /* ---------------- 提交评测 ---------------- */
+  function renderVerdict(res) {
+    var box = $("verdict-box");
+    var grid = $("verdict-grid");
+    box.hidden = false;
+    var verdict = res.verdict || "WA";
+    var badge = $("verdict-badge");
+    badge.textContent = verdict;
+    badge.className = "verdict-badge v-" + verdict;
+    $("verdict-text").textContent = res.total
+      ? res.passed + " / " + res.total + " 个测试点通过"
+      : (res.compiled ? "没有测试点" : "编译错误");
+    grid.innerHTML = "";
+    var names = {
+      AC: "Accepted 通过", WA: "Wrong Answer 答案错误",
+      TLE: "Time Limit Exceeded 超时", RE: "Runtime Error 运行错误",
+      CE: "Compile Error 编译错误"
+    };
+    (res.results || []).forEach(function (r, i) {
+      var cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "verdict-cell v-" + (r.verdict || "WA");
+      cell.innerHTML = '<span class="vc-idx">#' + (i + 1) + "</span>" +
+        '<span class="vc-lab">' + (r.verdict || "WA") + "</span>";
+      cell.title = "测试点 " + (i + 1) + "：" + (names[r.verdict] || r.verdict) +
+        "\n输入：" + (r.input || "（空）") +
+        "\n期望：" + (r.expected || "（空）") +
+        "\n实际：" + (r.output || "（空）");
+      cell.addEventListener("click", function () {
+        consoleWrite("测试点 " + (i + 1) + "：" + (names[r.verdict] || r.verdict) +
+          "\n  输入：" + (r.input || "（空）") +
+          "\n  期望：" + (r.expected || "（空）") +
+          "\n  实际：" + (r.output || "（空）") +
+          (r.stderr ? "\n  stderr：" + r.stderr : "") +
+          (r.timeout ? "\n  （超过 " + (r.time_limit || 3) + " 秒）" : ""));
+      });
+      grid.appendChild(cell);
+    });
+  }
+
+  async function submitCode() {
+    var tests = readTests();
+    if (!tests.length) {
+      V3.toast("还没有测试点：先在「测试数据」里加点，或用 AI 出测试点");
+      showTab("tests");
+      return;
+    }
+    refreshGutter();
+    var button = $("submit-code");
+    button.disabled = true;
+    showTab("output");
+    $("verdict-box").hidden = true;
+    consoleWrite("");
+    status('<span class="v3-muted">评测中…</span>');
+    var started = Date.now();
+    try {
+      var res = await V3.api("/api/v3/code/run", {
+        method: "POST",
+        body: { source: $("code-source").value, tests: tests }
+      });
+      var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
+      if (!res.compiled) {
+        $("verdict-box").hidden = false;
+        var badge = $("verdict-badge");
+        badge.textContent = "CE";
+        badge.className = "verdict-badge v-CE";
+        $("verdict-text").textContent = "编译错误";
+        $("verdict-grid").innerHTML = "";
+        consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
+        status('<span class="fail">Compile Error</span>', cost);
+        showTab("output");
+        return;
+      }
+      renderVerdict(res);
+      var lines = [];
+      (res.results || []).forEach(function (r, i) {
+        lines.push("测试点 " + (i + 1) + "：" + r.verdict);
+        if (r.verdict !== "AC") {
+          lines.push("  输入：" + (r.input || "（空）"));
+          lines.push("  期望：" + (r.expected || "（空）"));
+          lines.push("  实际：" + (r.output || "（空）"));
+          if (r.stderr) lines.push("  stderr：" + r.stderr);
+        }
+      });
+      consoleWrite(lines.join("\n") || "（没有测试点）");
+      status('<span class="' + (res.verdict === "AC" ? "pass" : "fail") + '">' +
+        res.verdict + "</span> <span class=\"v3-muted\">" + res.passed + " / " + res.total + " 通过</span>", cost);
+    } catch (err) {
+      status('<span class="fail">' + V3.esc(err.message) + "</span>");
+      consoleWrite("评测失败：" + err.message);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function consoleRun() {
+    return runCode();
   }
 
   async function aiReview() {
@@ -502,6 +567,7 @@
   $("generate-tests").addEventListener("click", generateTests);
   $("extract-tests").addEventListener("click", function () { extractTests(false); });
   $("run-code").addEventListener("click", runCode);
+  $("submit-code").addEventListener("click", submitCode);
   $("console-run").addEventListener("click", consoleRun);
   $("console-clear").addEventListener("click", function () {
     consoleWrite("（还没有运行）");

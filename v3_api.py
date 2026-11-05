@@ -945,6 +945,18 @@ def api_code_extract():
     return jsonify(ok=True, tests=picked[:8], mode="ai", note=note)
 
 
+def _verdict(item):
+    """单个测试点的判定：AC / WA / TLE / RE。"""
+    if item.get("timeout"):
+        return "TLE"
+    if item.get("ok"):
+        return "AC"
+    exit_code = item.get("exit")
+    if isinstance(exit_code, int) and exit_code != 0:
+        return "RE"
+    return "WA"
+
+
 @bp.post("/api/v3/code/run")
 def api_code_run():
     data = body()
@@ -968,6 +980,18 @@ def api_code_run():
         fail(str(exc), 503)
     except ValueError as exc:
         fail(str(exc))
+    if result.get("compiled"):
+        for item in result.get("results") or []:
+            item["verdict"] = _verdict(item)
+        verdicts = [item.get("verdict") for item in result.get("results") or []]
+        result["verdict"] = "AC" if verdicts and all(v == "AC" for v in verdicts) else (
+            next((v for v in verdicts if v != "AC"), "WA"))
+        result["passed"] = sum(1 for v in verdicts if v == "AC")
+        result["total"] = len(verdicts)
+    else:
+        result["verdict"] = "CE"
+        result["passed"] = 0
+        result["total"] = 0
     return jsonify(ok=True, preview=preview, console=console, **result)
 
 

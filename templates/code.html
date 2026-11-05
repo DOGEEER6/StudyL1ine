@@ -31,9 +31,10 @@
     <section class="ide-pane ide-editor">
       <div class="ide-toolbar">
         <button class="ide-btn primary" id="run-code" type="button">运行 <kbd>F9</kbd></button>
+        <button class="ide-btn submit" id="submit-code" type="button">提交评测</button>
         <button class="ide-btn" id="ai-review" type="button">AI 点评</button>
         <button class="ide-btn" id="save-code" type="button">保存</button>
-        <span class="ide-toolbar-hint">Tab 缩进 · Shift+Tab 反缩进 · Ctrl/⌘+Enter 运行</span>
+        <span class="ide-toolbar-hint">Tab 缩进 · Shift+Tab 反缩进 · Ctrl/⌘+Enter 提交</span>
       </div>
       <div class="ide-editor-body">
         <pre class="ide-gutter" id="gutter" aria-hidden="true">1</pre>
@@ -65,6 +66,13 @@ int main() {
         <div id="test-list"></div>
       </div>
       <div class="ide-tabpane" data-pane="output" hidden>
+        <div class="verdict-box" id="verdict-box" hidden>
+          <div class="verdict-summary">
+            <span class="verdict-badge" id="verdict-badge">AC</span>
+            <span class="verdict-text" id="verdict-text"></span>
+          </div>
+          <div class="verdict-grid" id="verdict-grid"></div>
+        </div>
         <pre class="ide-console" id="console-out">（还没有运行）</pre>
         <div class="ide-console-foot">
           <textarea class="ide-stdin" id="console-stdin" spellcheck="false" placeholder="键盘输入：程序用 cin 读的内容，原样写在这里"></textarea>
