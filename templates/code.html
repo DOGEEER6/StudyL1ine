@@ -52,20 +52,11 @@ int main() {
 
     <section class="ide-pane ide-side">
       <div class="ide-tabs" role="tablist">
-        <button class="ide-tab active" data-tab="tests" type="button">测试数据</button>
-        <button class="ide-tab" data-tab="output" type="button">输出</button>
+        <button class="ide-tab active" data-tab="output" type="button">输出</button>
+        <button class="ide-tab" data-tab="tests" type="button">测试数据</button>
         <button class="ide-tab" data-tab="review" type="button">AI 点评</button>
       </div>
-      <div class="ide-tabpane" data-pane="tests">
-        <div class="ide-tests-actions">
-          <button class="ide-btn small" id="add-test" type="button">+ 测试点</button>
-          <button class="ide-btn small ghost" id="extract-tests" type="button">从题面提取</button>
-          <button class="ide-btn small ghost" id="generate-tests" type="button">AI 出测试点</button>
-        </div>
-        <p class="ide-hint" id="extract-hint">「输入」就是程序用 cin 读到的内容；AI 出题会按题面自己补边界数据。</p>
-        <div id="test-list"></div>
-      </div>
-      <div class="ide-tabpane" data-pane="output" hidden>
+      <div class="ide-tabpane" data-pane="output">
         <div class="verdict-box" id="verdict-box" hidden>
           <div class="verdict-summary">
             <span class="verdict-badge" id="verdict-badge">AC</span>
@@ -73,7 +64,7 @@ int main() {
           </div>
           <div class="verdict-grid" id="verdict-grid"></div>
         </div>
-        <pre class="ide-console" id="console-out">（还没有运行）</pre>
+        <pre class="ide-console" id="console-out">直接在编辑器里写代码，按 F9 或点「运行」跑一次；点「提交评测」才会拿测试数据判分。</pre>
         <div class="ide-console-foot">
           <textarea class="ide-stdin" id="console-stdin" spellcheck="false" placeholder="键盘输入：程序用 cin 读的内容，原样写在这里"></textarea>
           <div class="ide-console-btns">
@@ -82,6 +73,15 @@ int main() {
             <span class="ide-hint" id="console-status"></span>
           </div>
         </div>
+      </div>
+      <div class="ide-tabpane" data-pane="tests" hidden>
+        <div class="ide-tests-actions">
+          <button class="ide-btn small" id="add-test" type="button">+ 测试点</button>
+          <button class="ide-btn small ghost" id="extract-tests" type="button">从题面提取</button>
+          <button class="ide-btn small ghost" id="generate-tests" type="button">AI 出测试点</button>
+        </div>
+        <p class="ide-hint" id="extract-hint">「输入」就是程序用 cin 读到的内容；AI 出题会按题面自己补边界数据。</p>
+        <div id="test-list"></div>
       </div>
       <div class="ide-tabpane" data-pane="review" hidden>
         <div id="review-body" class="ide-review">

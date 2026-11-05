@@ -836,3 +836,74 @@ html {
   letter-spacing: .02em;
   line-height: 1.5;
 }
+
+/* PK：手写解答上传、交卷后的逐题核对与错题解析 */
+.duel-progress i.done { background: var(--v3-accent); opacity: .45; }
+
+.duel-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.duel-photo-row label.v3-btn {
+  cursor: pointer;
+  margin: 0;
+}
+
+.duel-review {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.duel-review-item {
+  padding: 12px 14px;
+  border: 1px solid var(--v3-line);
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.duel-review-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.duel-review-head .v3-muted { margin-left: auto; font-size: 12px; }
+
+.duel-review-body { margin-top: 8px; font-size: 14px; line-height: 1.75; }
+.duel-review-body p { margin: 0 0 4px; }
+
+.duel-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.duel-badge.ac { background: #2f6fed; }
+.duel-badge.wa { background: #e05252; }
+
+.duel-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.duel-analysis-item {
+  padding: 12px 14px;
+  border-left: 3px solid var(--v3-accent);
+  border-radius: 10px;
+  background: #f6f9ff;
+  font-size: 14px;
+  line-height: 1.75;
+}

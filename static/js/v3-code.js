@@ -1,4 +1,4 @@
-﻿/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
+/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
 (function () {
   var entryId = document.body.dataset.entryId || "";
   var currentEntry = entryId;
@@ -364,16 +364,17 @@
       return;
     }
     button.disabled = true;
-    $("extract-hint").textContent = "AI 正在读题、补边界数据…";
+    var hint = $("extract-hint");
+    showTab("tests");
+    hint.textContent = "AI 正在读题、补边界数据…";
     try {
       var res = await V3.api("/api/v3/code/generate", {
         method: "POST",
-        body: { requirement: requirement, entry_id: currentEntry, count: 5 }
+        body: { requirement: requirement, entry_id: currentEntry, count: 10 }
       });
       fillTests(res.tests || []);
-      showTab("tests");
-      $("extract-hint").textContent = res.note || "已生成测试点";
-      V3.toast("AI 出了 " + (res.tests || []).length + " 组测试点");
+      hint.textContent = res.note || "已生成测试点";
+      V3.toast("AI 出了 " + (res.tests || []).length + " 组测试点，已复核期望输出");
     } catch (err) {
       $("extract-hint").textContent = "";
       V3.fail(err);

@@ -10,6 +10,11 @@ COLUMNS = [
     ("entries", "code", "TEXT NOT NULL DEFAULT ''"),
     ("entries", "code_tests", "TEXT NOT NULL DEFAULT '[]'"),
     ("entries", "code_notes", "TEXT NOT NULL DEFAULT ''"),
+    ("duel_answers", "text", "TEXT NOT NULL DEFAULT ''"),
+    ("duel_answers", "image", "TEXT NOT NULL DEFAULT ''"),
+    ("duel_answers", "verdict", "TEXT NOT NULL DEFAULT ''"),
+    ("duel_answers", "reason", "TEXT NOT NULL DEFAULT ''"),
+    ("duels", "analysis", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 TABLES = [

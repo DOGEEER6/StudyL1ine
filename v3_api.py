@@ -314,7 +314,8 @@ def _duel_payload(db_, duel, viewer_id):
             })
     answers = {}
     for row in db_.execute("SELECT * FROM duel_answers WHERE duel_id=? AND user_id=?", (duel["id"], viewer_id)):
-        answers[row["idx"]] = {"choice": row["choice"], "correct": bool(row["correct"]), "seconds": row["seconds"]}
+        answers[row["idx"]] = {"answered": True, "seconds": row["seconds"],
+                               "image": bool(row["image"]), "text": row["text"]}
     mine = {"answers": answers}
     opponent_id = duel["guest_id"] if duel["host_id"] == viewer_id else duel["host_id"]
     done_counts = {}
@@ -453,6 +454,37 @@ def api_duel_get(duel_id):
     return jsonify(duel=_duel_payload(db_, row, uid()))
 
 
+DUEL_GRADE_SYSTEM = (
+    "你是批改手写解答的助教。会给你一道题、它的标准答案，以及学生写在纸上的解答照片。\n"
+    "判断学生这次解答对不对：只看结论和关键步骤；符号写法不同但数学等价算对；\n"
+    "只写最终答案且答案正确也算对；有明显推导错误、结论错误、只写了一半算错。\n"
+    "reason 用一句中文说清对在哪 / 错在哪一步，不要复述整道题。\n"
+    '只返回 JSON：{"correct": true, "reason": "..."}，不要代码围栏。'
+)
+
+
+def _grade_handwriting(entry, data_url):
+    """把手写解答照片交给 AI 判对错，返回 (correct, reason)。"""
+    config = core.get_ai_config(db())
+    core.check_ai_quota(db(), uid(), "grade")
+    answer = (entry["answer"] or entry["solution"] or "")[:2000]
+    prompt = "题目：\n%s\n\n标准答案：\n%s\n\n下面是学生的手写解答照片。" % (
+        (entry["problem"] or entry["ocr_text"] or "")[:3000],
+        answer or "（题库里没写标准答案，请你自己解一遍再判断）",
+    )
+    messages = [
+        {"role": "system", "content": DUEL_GRADE_SYSTEM},
+        {"role": "user", "content": core.image_content([prompt], [data_url])},
+    ]
+    try:
+        reply, _model, _usage = core.call_ai(
+            {**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    parsed = _parse_json(reply)
+    return bool(parsed.get("correct")), str(parsed.get("reason") or "")[:300]
+
+
 @bp.post("/api/v3/duels/<duel_id>/answer")
 def api_duel_answer(duel_id):
     db_ = db()
@@ -465,6 +497,7 @@ def api_duel_answer(duel_id):
     data = body()
     index = int(data.get("idx", -1))
     text = str(data.get("text") or "").strip()[:2000]
+    image = str(data.get("image") or "")
     seconds = max(0.0, min(600.0, float(data.get("seconds") or 0)))
     ids = json_list(duel["questions"])
     if not 0 <= index < len(ids):
@@ -472,17 +505,34 @@ def api_duel_answer(duel_id):
     entry = db_.execute("SELECT * FROM entries WHERE id=?", (ids[index],)).fetchone()
     if not entry:
         fail("题目已不存在", 404)
-    correct = _answer_matches(text, entry["answer"]) if text else False
+    saved = ""
+    reason = ""
+    if image.startswith("data:image/"):
+        item = core.save_image_attachment(image, "PK 手写解答", "solution")
+        saved = item["thumb"]
+        correct, reason = _grade_handwriting(entry, image)
+    elif text:
+        correct = _answer_matches(text, entry["answer"])
+        reason = "答案一致" if correct else "和参考答案不一致"
+    else:
+        fail("先写答案或者拍一张解答再提交")
     db_.execute(
-        "INSERT INTO duel_answers(duel_id,user_id,idx,choice,correct,seconds,answered_at) VALUES(?,?,?,?,?,?,?) "
+        "INSERT INTO duel_answers(duel_id,user_id,idx,choice,correct,seconds,answered_at,text,image,verdict,reason) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(duel_id,user_id,idx) DO UPDATE SET choice=excluded.choice, correct=excluded.correct, "
-        "seconds=excluded.seconds, answered_at=excluded.answered_at",
-        (duel_id, me, index, 0, 1 if correct else 0, seconds, core.now_utc()),
+        "seconds=excluded.seconds, answered_at=excluded.answered_at, text=excluded.text, "
+        "image=excluded.image, verdict=excluded.verdict, reason=excluded.reason",
+        (duel_id, me, index, 0, 1 if correct else 0, seconds, core.now_utc(),
+         text[:2000], saved, "AC" if correct else "WA", reason),
     )
     if duel["status"] == "ready":
         db_.execute("UPDATE duels SET status='playing' WHERE id=?", (duel_id,))
     db_.commit()
-    return jsonify(ok=True, correct=bool(correct), answer=entry["answer"] if correct else "")
+    done = db_.execute(
+        "SELECT COUNT(*) AS n FROM duel_answers WHERE duel_id=? AND user_id=?", (duel_id, me)
+    ).fetchone()["n"]
+    # 对局过程中不透露对错，交卷后统一看解析
+    return jsonify(ok=True, idx=index, answered=done, total=len(ids))
 
 
 def _normalize_answer(text):
@@ -534,8 +584,9 @@ def api_duel_submit(duel_id):
 @bp.get("/api/v3/duels/<duel_id>/result")
 def api_duel_result(duel_id):
     db_ = db()
+    me = uid()
     duel = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
-    if not duel or uid() not in (duel["host_id"], duel["guest_id"]):
+    if not duel or me not in (duel["host_id"], duel["guest_id"]):
         fail("对局不存在", 404)
     rows = db_.execute(
         "SELECT user_id, COUNT(*) AS n, SUM(correct) AS score, SUM(seconds) AS secs "
@@ -548,9 +599,108 @@ def api_duel_result(duel_id):
         "score": row["score"] or 0,
         "total": row["n"],
         "seconds": round(row["secs"] or 0, 1),
-        "you": row["user_id"] == uid(),
+        "you": row["user_id"] == me,
     } for row in rows]
-    return jsonify(ok=True, status=duel["status"], players=players)
+    questions = []
+    finished = duel["status"] == "finished"
+    if finished:
+        ids = json_list(duel["questions"])
+        marks = ",".join("?" * len(ids)) if ids else ""
+        entries = {}
+        if ids:
+            entries = {r["id"]: r for r in db_.execute(
+                "SELECT id,title,problem,ocr_text,answer,solution,ai_solution FROM entries "
+                f"WHERE id IN ({marks})", ids)}
+        mine = {r["idx"]: r for r in db_.execute(
+            "SELECT * FROM duel_answers WHERE duel_id=? AND user_id=?", (duel_id, me))}
+        for index, entry_id in enumerate(ids):
+            entry = entries.get(entry_id)
+            if not entry:
+                continue
+            answer = mine.get(index)
+            questions.append({
+                "idx": index,
+                "id": entry_id,
+                "title": entry_label(entry),
+                "problem": (entry["problem"] or entry["ocr_text"] or "")[:1500],
+                "correct_answer": entry["answer"] or "",
+                "solution": (entry["solution"] or entry["ai_solution"] or "")[:1500],
+                "your_text": answer["text"] if answer else "",
+                "your_image": answer["image"] if answer else "",
+                "verdict": ("AC" if answer and answer["correct"] else "WA") if answer else "—",
+                "reason": answer["reason"] if answer else "",
+                "seconds": round(answer["seconds"], 1) if answer else 0,
+            })
+    return jsonify(ok=True, status=duel["status"], players=players, questions=questions,
+                   analysis=json.loads(duel["analysis"]) if duel["analysis"] else [])
+
+
+DUEL_ANALYSIS_SYSTEM = (
+    "你是程序设计/数学课的助教。下面是学生在一次 PK 里的错题，请逐题写解析。\n"
+    "每题给三个字段：point（这题考什么，10 字内）、why（他大概错在哪，结合他的答案说）、\n"
+    "how（正确思路两三句，能直接看懂）。\n"
+    '只返回 JSON：{"items":[{"idx":0,"point":"...","why":"...","how":"..."}]}，不要代码围栏。'
+)
+
+
+@bp.post("/api/v3/duels/<duel_id>/analysis")
+def api_duel_analysis(duel_id):
+    db_ = db()
+    me = uid()
+    duel = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
+    if not duel or me not in (duel["host_id"], duel["guest_id"]):
+        fail("对局不存在", 404)
+    if duel["analysis"]:
+        return jsonify(ok=True, analysis=json.loads(duel["analysis"]))
+    if duel["status"] != "finished":
+        fail("对手还没交卷，等结束后再看解析")
+    ids = json_list(duel["questions"])
+    entries = {r["id"]: r for r in db_.execute(
+        "SELECT id,title,problem,ocr_text,answer FROM entries WHERE id IN (%s)" % ",".join("?" * len(ids)), ids)}
+    mine = {r["idx"]: r for r in db_.execute(
+        "SELECT * FROM duel_answers WHERE duel_id=? AND user_id=?", (duel_id, me))}
+    wrong = []
+    for index, entry_id in enumerate(ids):
+        entry = entries.get(entry_id)
+        answer = mine.get(index)
+        if not entry or (answer and answer["correct"]):
+            continue
+        wrong.append({
+            "idx": index,
+            "problem": (entry["problem"] or entry["ocr_text"] or "")[:1200],
+            "correct_answer": entry["answer"] or "",
+            "your_answer": (answer["text"] if answer and answer["text"] else "") or
+                           ("（拍照提交：" + (answer["reason"] if answer else "") + "）" if answer and answer["image"] else "（没答）"),
+        })
+    if not wrong:
+        db_.execute("UPDATE duels SET analysis=? WHERE id=?", (json.dumps([]), duel_id))
+        db_.commit()
+        return jsonify(ok=True, analysis=[])
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, me, "analysis")
+    messages = [
+        {"role": "system", "content": DUEL_ANALYSIS_SYSTEM},
+        {"role": "user", "content": json.dumps(wrong, ensure_ascii=False)[:12000]},
+    ]
+    try:
+        reply, _model, _usage = core.call_ai(
+            {**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    items = _parse_json(reply).get("items") or []
+    clean = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        clean.append({
+            "idx": int(item.get("idx") or 0),
+            "point": str(item.get("point") or "")[:60],
+            "why": str(item.get("why") or "")[:400],
+            "how": str(item.get("how") or "")[:800],
+        })
+    db_.execute("UPDATE duels SET analysis=? WHERE id=?", (json.dumps(clean, ensure_ascii=False), duel_id))
+    db_.commit()
+    return jsonify(ok=True, analysis=clean)
 
 
 # ---------------------------------------------------------------------------
@@ -1092,18 +1242,59 @@ def api_code_bank():
 
 
 CODE_GENERATE_SYSTEM = (
-    "你是程序设计课的命题助教。请根据题面生成可用于自动判题的测试数据。\n"
-    "要求：1) 每组给出程序读入的完整标准输入 input，以及标准解法应输出的 output；\n"
-    "2) 覆盖：题面样例、边界情况（最小值、最大值、单元素、重复、无解等，视题目而定）；\n"
-    "3) 输入输出必须是确定性的纯文本，不要写解释；\n"
-    "4) 只返回 JSON：{\"tests\":[{\"input\":\"1 2\",\"output\":\"3\",\"why\":\"样例\"}]}，"
-    "最多 {count} 组。不要代码围栏。"
+    "你是程序设计课的命题助教。请根据题面生成一套能真正判出对错的测试数据。\n"
+    "目标：让「样例对了但逻辑错了」的程序也过不了，别只抄题面样例。\n"
+    "每组必须给出：程序读入的完整标准输入 input，以及标准解法应输出的 output。\n"
+    "覆盖建议（按题目实际调整）：\n"
+    "- 题面样例 1~2 组；\n"
+    "- 边界：最小规模、最大规模、0、负数、空输入、单个元素；\n"
+    "- 特殊情况：全部相同、已有序、逆序、重复元素、无解；\n"
+    "- 易错点：会溢出/精度丢失的取值、多组数据、多余空格与换行。\n"
+    "输入输出都必须是确定性纯文本，行尾不要多余空格，不要写解释。\n"
+    "why 用 6 个字说明这组在考什么（如「最大规模」「负数边界」）。\n"
+    "只返回 JSON：{\"tests\":[{\"input\":\"1 2\",\"output\":\"3\",\"why\":\"样例\"}]}，"
+    "给 {count} 组。不要代码围栏。"
 )
+
+CODE_VERIFY_SYSTEM = (
+    "你是判题数据审核员。下面有题面和一批测试数据，请逐组核对「标准输入」跑标准程序"
+    "得到的输出是否真的等于「期望输出」。\n"
+    "1) 错的一律改正；2) 题意不清、输出不唯一的组直接删掉；\n"
+    "3) 如果某组输入明显不合法（缺参数、超出题面范围），删掉或改正；\n"
+    "4) 保持顺序和 why 字段，可以补充遗漏的边界组，但总数不超过 {count} 组。\n"
+    "只返回 JSON：{\"tests\":[{\"input\":\"...\",\"output\":\"...\",\"why\":\"...\"}]}，不要代码围栏。"
+)
+
+
+def _ai_json(config, system, payload, limit=16000):
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": payload[:limit]},
+    ]
+    try:
+        reply, _model, _usage = core.call_ai(
+            {**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    return _parse_json(reply)
+
+
+def _clean_tests(parsed, limit):
+    picked = []
+    for item in parsed.get("tests") or []:
+        if not isinstance(item, dict):
+            continue
+        stdin = str(item.get("input") or "").strip("\n")[:2000]
+        stdout = str(item.get("output") or "").strip("\n")[:2000]
+        if stdin.strip() or stdout.strip():
+            picked.append({"input": stdin, "output": stdout, "ai": True,
+                           "why": str(item.get("why") or "")[:60]})
+    return picked[:limit]
 
 
 @bp.post("/api/v3/code/generate")
 def api_code_generate():
-    """让 AI 读题后自己出测试数据（不只是抄题面里的样例）。"""
+    """让 AI 读题后自己出测试数据（不只是抄题面里的样例），并复核期望输出。"""
     data = body()
     text = str(data.get("requirement") or "")[:20000]
     entry_id = str(data.get("entry_id") or "")
@@ -1115,34 +1306,36 @@ def api_code_generate():
     if not text.strip():
         fail("先把题目要求贴进来，AI 才有得分析")
     try:
-        count = max(1, min(8, int(data.get("count") or 5)))
+        count = max(1, min(12, int(data.get("count") or 10)))
     except (TypeError, ValueError):
-        count = 5
+        count = 10
     db_ = db()
     config = core.get_ai_config(db_)
     core.check_ai_quota(db_, uid(), "solve")
-    messages = [
-        {"role": "system", "content": CODE_GENERATE_SYSTEM.replace("{count}", str(count))},
-        {"role": "user", "content": text[:16000]},
-    ]
-    try:
-        reply, _model, _usage = core.call_ai({**config, "structured_output": True}, messages, config.get("model"))
-    except core.AIError as exc:
-        fail(str(exc), 502)
-    parsed = _parse_json(reply)
-    picked = []
-    for item in parsed.get("tests") or []:
-        if not isinstance(item, dict):
-            continue
-        stdin = str(item.get("input") or "").strip("\n")[:2000]
-        stdout = str(item.get("output") or "").strip("\n")[:2000]
-        if stdin.strip() or stdout.strip():
-            picked.append({"input": stdin, "output": stdout, "ai": True,
-                           "why": str(item.get("why") or "")[:60]})
+    parsed = _ai_json(config, CODE_GENERATE_SYSTEM.replace("{count}", str(count)), text)
+    picked = _clean_tests(parsed, count)
     if not picked:
         fail("AI 没给出可用的测试数据，换个说法再试一次")
-    return jsonify(ok=True, tests=picked[:count], mode="ai",
-                   note="AI 出了 %d 组测试点，建议先核对再判分" % len(picked[:count]))
+    checked = picked
+    if data.get("verify", True) and picked:
+        try:
+            # 复核属于同一次出题动作，不受 3 秒最小间隔限制
+            core.check_ai_quota(db_, uid(), "solve", enforce_interval=False)
+        except Exception:
+            checked = picked
+        else:
+            payload = "题面：\n" + text[:9000] + "\n\n现有测试数据：\n" + json.dumps(
+                [{"input": t["input"], "output": t["output"], "why": t.get("why", "")} for t in picked],
+                ensure_ascii=False)
+            try:
+                fixed = _clean_tests(
+                    _ai_json(config, CODE_VERIFY_SYSTEM.replace("{count}", str(count)), payload), count)
+            except Exception:
+                fixed = []
+            if fixed:
+                checked = fixed
+    return jsonify(ok=True, tests=checked, mode="ai", verified=bool(checked is not picked),
+                   note="AI 出了 %d 组测试点并复核了期望输出" % len(checked))
 
 
 @bp.get("/api/v3/code/health")

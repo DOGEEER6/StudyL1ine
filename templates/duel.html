@@ -49,6 +49,11 @@
       <input class="v3-input" id="play-answer" placeholder="写下你的答案，回车提交" autocomplete="off">
       <button class="v3-btn primary" id="play-submit" type="button" style="flex:0 0 auto">提交</button>
     </div>
+    <div class="duel-photo-row">
+      <label class="v3-btn small ghost" for="play-photo">📷 拍手写解答上传</label>
+      <input type="file" id="play-photo" accept="image/*" capture="environment" hidden>
+      <span class="v3-muted" id="play-photo-hint">纸上写完拍照，AI 对照片判分，结果交卷后一起出</span>
+    </div>
     <p class="v3-muted" id="play-feedback" style="margin-top:10px"></p>
     <hr class="v3-hr">
     <button class="v3-btn" id="play-finish" type="button">全部答完，交卷</button>
@@ -59,6 +64,8 @@
   <div class="v3-card">
     <h2 style="margin:0 0 4px;font-size:19px" id="result-title">对战结果</h2>
     <div id="result-body"></div>
+    <div id="result-questions"></div>
+    <div id="result-analysis"></div>
     <hr class="v3-hr">
     <button class="v3-btn" id="result-back" type="button">返回</button>
   </div>
