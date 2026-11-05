@@ -1314,60 +1314,86 @@ def call_ai(config: dict, messages: list[dict], model: str | None = None) -> tup
             payload["thinking"] = {"type": "disabled"}
         else:
             payload["reasoning_effort"] = "low"
-    req = urllib.request.Request(
-        endpoint,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "math-notes/1.1 (+https://math.dogeeer.cn)",
-        },
-        method="POST",
-    )
-    started = time.time()
-    try:
-        with urllib.request.urlopen(req, timeout=AI_TIMEOUT) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")[:2000]
-        message = body
+    def _request(body: dict) -> tuple[str, dict, int]:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": "math-notes/1.1 (+https://math.dogeeer.cn)",
+            },
+            method="POST",
+        )
+        started = time.time()
         try:
-            parsed = json.loads(body)
-            message = (
-                parsed.get("error", {}).get("message")
-                if isinstance(parsed.get("error"), dict)
-                else parsed.get("error") or message
-            )
-        except (ValueError, TypeError):
-            pass
-        raise AIError(f"AI 服务返回 {exc.code}：{str(message)[:400]}")
-    except urllib.error.URLError as exc:
-        raise AIError(f"无法连接 AI 服务：{str(exc.reason)[:200]}")
-    except TimeoutError:
-        raise AIError("AI 请求超时，请稍后重试")
-    try:
-        data = json.loads(raw)
-    except ValueError:
-        raise AIError("AI 服务返回了非 JSON 内容")
-    try:
-        content = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        raise AIError("AI 响应格式不正确")
-    if isinstance(content, list):
-        parts = []
-        for part in content:
-            if isinstance(part, dict) and isinstance(part.get("text"), str):
-                parts.append(part["text"])
-            elif isinstance(part, str):
-                parts.append(part)
-        content = "\n".join(parts)
-    if not isinstance(content, str) or not content.strip():
-        if data["choices"][0].get("finish_reason") == "length":
+            with urllib.request.urlopen(req, timeout=AI_TIMEOUT) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:2000]
+            message = body
+            try:
+                parsed = json.loads(body)
+                message = (
+                    parsed.get("error", {}).get("message")
+                    if isinstance(parsed.get("error"), dict)
+                    else parsed.get("error") or message
+                )
+            except (ValueError, TypeError):
+                pass
+            raise AIError(f"AI 服务返回 {exc.code}：{str(message)[:400]}")
+        except urllib.error.URLError as exc:
+            raise AIError(f"无法连接 AI 服务：{str(exc.reason)[:200]}")
+        except TimeoutError:
+            raise AIError("AI 请求超时，请稍后重试")
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            raise AIError("AI 服务返回了非 JSON 内容")
+        try:
+            content = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            raise AIError("AI 响应格式不正确")
+        if isinstance(content, list):
+            parts = []
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    parts.append(part["text"])
+                elif isinstance(part, str):
+                    parts.append(part)
+            content = "\n".join(parts)
+        if not isinstance(content, str):
+            content = ""
+        return content, data, int((time.time() - started) * 1000)
+
+    content, data, elapsed = _request(payload)
+    finish = (data.get("choices") or [{}])[0].get("finish_reason")
+    if finish == "length":
+        # 思考链吃掉了输出预算：关掉深度思考、把预算加倍再试一次
+        retry_payload = dict(payload)
+        retry_payload["max_tokens"] = min(8192, int(payload["max_tokens"]) * 2 + 512)
+        retry_payload.pop("reasoning_effort", None)
+        retry_payload["thinking"] = {"type": "disabled"}
+        app.logger.warning(
+            "AI 输出被截断（finish_reason=length, max_tokens=%s），关闭深度思考后重试 %s",
+            payload.get("max_tokens"),
+            retry_payload["max_tokens"],
+        )
+        try:
+            retry_content, retry_data, retry_elapsed = _request(retry_payload)
+        except AIError:
+            retry_content, retry_data, retry_elapsed = "", data, 0
+        if retry_content.strip():
+            content, data = retry_content, retry_data
+            elapsed += retry_elapsed
+            finish = (data.get("choices") or [{}])[0].get("finish_reason")
+    if not content.strip():
+        if finish == "length":
             raise AIError("AI 输出达到长度上限，未生成完整解析")
         raise AIError("AI 返回了空内容")
     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
-    usage["elapsed_ms"] = int((time.time() - started) * 1000)
+    usage["elapsed_ms"] = elapsed
     return content.strip(), str(data.get("model") or payload["model"]), usage
 
 
@@ -3245,7 +3271,7 @@ def api_admin_ai_save():
     set_setting(db, "ai_model", model)
     set_setting(db, "ai_vision_model", vision_model)
     set_setting(db, "ai_temperature", str(max(0.0, min(1.5, temperature))))
-    set_setting(db, "ai_max_tokens", str(max(256, min(4096, max_tokens))))
+    set_setting(db, "ai_max_tokens", str(max(256, min(8192, max_tokens))))
     set_setting(db, "ai_daily_limit", str(max(0, min(1000, daily_limit))))
     set_setting(db, "ai_hourly_limit", str(max(0, min(500, hourly_limit))))
     set_setting(db, "ai_min_interval", str(max(0, min(120, min_interval))))
