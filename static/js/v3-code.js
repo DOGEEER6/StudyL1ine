@@ -1,10 +1,14 @@
-/* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
+/* v3-code.js — IDE 页面（洛谷式两栏）：左边题目、右边代码 + 自测输入输出。 */
 (function () {
   var entryId = document.body.dataset.entryId || "";
   var currentEntry = entryId;
   var bankItems = [];
+  var tests = [];
+  var generating = false;
+  var autoTimer = null;
   var $ = function (id) { return document.getElementById(id); };
   var INDENT = "    ";
+  var TEST_CAP = 12;
 
   /* ---------------- 编辑器 ---------------- */
   function refreshGutter() {
@@ -70,7 +74,6 @@
         if (strip > 0) replaceRange(s - strip, s, "");
         return;
       }
-      // 用 execCommand 插入可以保留撤销栈
       if (document.execCommand && document.execCommand("insertText", false, INDENT)) {
         refreshGutter();
       } else {
@@ -113,132 +116,212 @@
     }
   }
 
-  /* ---------------- 面板切换 ---------------- */
-  function showTab(name) {
-    Array.prototype.forEach.call(document.querySelectorAll(".ide-tab"), function (tab) {
-      tab.classList.toggle("active", tab.dataset.tab === name);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".ide-tabpane"), function (pane) {
-      pane.hidden = pane.dataset.pane !== name;
-    });
-  }
-
-  /* ---------------- 测试点 ---------------- */
-  function testRow(input, output) {
-    var row = document.createElement("div");
-    row.className = "test-row";
-    row.innerHTML = '<label class="test-lab">输入</label>' +
-      '<textarea class="v3-textarea" placeholder="输入（程序 cin 读到的内容）" spellcheck="false"></textarea>' +
-      '<label class="test-lab">期望输出</label>' +
-      '<textarea class="v3-textarea" placeholder="期望输出" spellcheck="false"></textarea>' +
-      '<button class="ide-btn small ghost" type="button" title="删除">×</button>';
-    row.querySelectorAll("textarea")[0].value = input || "";
-    row.querySelectorAll("textarea")[1].value = output || "";
-    row.querySelector("button").addEventListener("click", function () { row.remove(); });
-    $("test-list").appendChild(row);
-    return row;
-  }
-
-  function readTests() {
-    return Array.prototype.map.call(document.querySelectorAll("#test-list .test-row"), function (row) {
-      var t = row.querySelectorAll("textarea");
-      return { input: t[0].value, output: t[1].value };
-    }).filter(function (t) { return t.input.trim() || t.output.trim(); });
-  }
-
-  function fillTests(tests) {
-    Array.prototype.forEach.call(document.querySelectorAll("#test-list .test-row"), function (row) {
-      var t = row.querySelectorAll("textarea");
-      if (!t[0].value.trim() && !t[1].value.trim()) row.remove();
-    });
-    var existing = {};
-    readTests().forEach(function (t) { existing[t.input + "\u0000" + t.output] = 1; });
-    tests.forEach(function (t) {
-      var key = (t.input || "") + "\u0000" + (t.output || "");
-      if (!existing[key]) {
-        testRow(t.input, t.output);
-        existing[key] = 1;
-      }
-    });
-    if (!document.querySelector("#test-list .test-row")) testRow("", "");
-  }
-
-  function hasContent(tests) {
-    return tests.some(function (t) { return t.input.trim() || t.output.trim(); });
-  }
-
-  /* ---------------- 输出 ---------------- */
-  function consoleWrite(text) {
-    $("console-out").textContent = text;
-  }
-
+  /* ---------------- 状态条 / 输出 ---------------- */
   function status(summary, extra) {
     $("run-summary").innerHTML = summary;
     $("status-extra").textContent = extra || "";
   }
 
-  function renderConsoleTests(res) {
-    if (!res.compiled) {
-      consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
-      return;
-    }
-    var lines = [];
-    (res.results || []).forEach(function (r, i) {
-      lines.push("测试点 " + (i + 1) + "：" + (r.ok ? "通过" : "未通过") + (r.timeout ? "（超时）" : ""));
-      lines.push("  输入：" + (r.input || "（空）"));
-      lines.push("  期望：" + (r.expected || "（空）"));
-      lines.push("  实际：" + (r.output || "（空）"));
-      if (r.stderr) lines.push("  stderr：" + r.stderr);
-    });
-    consoleWrite(lines.join("\n"));
+  function consoleWrite(text) {
+    $("console-out").hidden = false;
+    $("review-body").hidden = true;
+    $("console-out").textContent = text;
   }
 
-  /* ---------------- 动作 ---------------- */
-  async function extractTests(useAi) {
-    var button = $("extract-tests");
+  function showReview(html) {
+    $("console-out").hidden = true;
+    $("verdict-box").hidden = true;
+    $("review-body").hidden = false;
+    $("review-body").innerHTML = html;
+  }
+
+  /* ---------------- 测试点 ---------------- */
+  function setTests(list) {
+    tests = (list || []).filter(function (t) { return (t.input || "").trim() || (t.output || "").trim(); });
+    renderSamples();
+    $("prob-tests").textContent = "测试点 " + tests.length + " 组";
+  }
+
+  function renderSamples() {
+    var box = $("samples");
+    if (!tests.length) {
+      box.innerHTML = '<p class="ide-hint">还没有测试点。把题目写进上面的框里就会自动生成。</p>';
+      return;
+    }
+    var shown = tests.slice(0, 3);
+    box.innerHTML = "";
+    shown.forEach(function (t, i) {
+      var card = document.createElement("div");
+      card.className = "sample";
+      card.innerHTML = '<div class="sample-head"><span>样例 #' + (i + 1) + "</span>" +
+        '<span class="sample-acts"><button class="ide-mini" type="button" data-act="copy">复制</button>' +
+        '<button class="ide-mini" type="button" data-act="run">运行</button></span></div>' +
+        '<div class="sample-body"><div class="sample-col"><span class="sample-tag">输入</span><pre class="sample-in"></pre></div>' +
+        '<div class="sample-col"><span class="sample-tag">输出</span><pre class="sample-out"></pre></div></div>';
+      card.querySelector(".sample-in").textContent = t.input || "（空）";
+      card.querySelector(".sample-out").textContent = t.output || "（空）";
+      card.querySelector('[data-act="copy"]').addEventListener("click", function () {
+        copyText(t.input || "", "样例输入已复制");
+      });
+      card.querySelector('[data-act="run"]').addEventListener("click", function () {
+        $("console-stdin").value = t.input || "";
+        runCode();
+      });
+      box.appendChild(card);
+    });
+    if (tests.length > shown.length) {
+      var more = document.createElement("p");
+      more.className = "ide-hint";
+      more.textContent = "还有 " + (tests.length - shown.length) + " 组测试点，提交评测时会一起比对。";
+      box.appendChild(more);
+    }
+  }
+
+  function copyText(text, message) {
+    var done = function () { if (message) V3.toast(message); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+      return;
+    }
+    fallbackCopy(text);
+    done();
+  }
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (err) { /* 忽略 */ }
+    ta.remove();
+  }
+
+  /* ---------------- 生成进度 ---------------- */
+  var STAGES = ["AI 正在读题面…", "正在设计边界数据…", "正在复核期望输出…"];
+
+  function startGen(label) {
+    var fill = $("gen-fill");
+    var text = $("gen-text");
+    var pct = 6;
+    var stage = 0;
+    fill.style.width = pct + "%";
+    text.textContent = label || STAGES[0];
+    var timer = setInterval(function () {
+      pct = Math.min(93, pct + Math.max(0.7, (93 - pct) * 0.06));
+      fill.style.width = pct + "%";
+    }, 220);
+    var stageTimer = setInterval(function () {
+      stage = Math.min(STAGES.length - 1, stage + 1);
+      text.textContent = STAGES[stage];
+    }, 4200);
+    return {
+      step: function (message) { text.textContent = message; },
+      done: function (message) {
+        clearInterval(timer);
+        clearInterval(stageTimer);
+        fill.style.width = "100%";
+        text.textContent = message;
+        setTimeout(function () { fill.style.width = "0%"; }, 1400);
+      },
+      fail: function (message) {
+        clearInterval(timer);
+        clearInterval(stageTimer);
+        fill.style.width = "0%";
+        text.textContent = message;
+      }
+    };
+  }
+
+  async function generateTests(options) {
+    var opts = options || {};
+    if (generating) return;
     var requirement = $("code-requirement").value.trim();
-    if (!requirement && !entryId) {
+    if (!requirement && !currentEntry) {
       V3.toast("先把题目要求贴进来", "error");
       return;
     }
-    button.disabled = true;
-    $("extract-hint").textContent = useAi ? "AI 正在读题面…" : "正在识别题面里的样例…";
+    generating = true;
+    var progress = startGen();
     try {
       var res = await V3.api("/api/v3/code/extract", {
         method: "POST",
-        body: { requirement: requirement, entry_id: currentEntry, use_ai: !!useAi }
+        body: { requirement: requirement, entry_id: currentEntry, use_ai: false }
       });
-      if (!res.tests || !res.tests.length) {
-        if (!useAi) {
-          button.disabled = false;
-          return extractTests(true);
-        }
-        $("extract-hint").textContent = res.note || "题面里没有样例，手动加测试点吧";
+      var found = res.tests || [];
+      progress.step("AI 正在出测试点（最多 " + TEST_CAP + " 组）…");
+      var ai = null;
+      try {
+        ai = await V3.api("/api/v3/code/generate", {
+          method: "POST",
+          body: { requirement: requirement, entry_id: currentEntry, count: TEST_CAP }
+        });
+      } catch (err) {
+        if (!found.length) throw err;
+        progress.fail("AI 暂时不可用，只用题面里的 " + found.length + " 组样例");
+        setTests(found);
         return;
       }
-      fillTests(res.tests);
-      showTab("tests");
-      $("extract-hint").textContent = (res.note || "") + "（可以先核对再运行）";
-      V3.toast("已添加 " + res.tests.length + " 组测试点");
+      var merged = mergeTests(found, (ai && ai.tests) || []);
+      setTests(merged);
+      if (!merged.length) {
+        progress.fail("没生成出测试点，检查一下题目是否写完整");
+        return;
+      }
+      progress.done((ai && ai.note ? ai.note : "已生成测试点") + " · " + merged.length + " 组");
+      if (!opts.silent) V3.toast("已生成 " + merged.length + " 组测试点");
     } catch (err) {
-      $("extract-hint").textContent = "";
+      progress.fail(err.message);
       V3.fail(err);
     } finally {
-      button.disabled = false;
+      generating = false;
     }
   }
 
-  /* ---------------- 题目来源：题库 / 图片 ---------------- */
+  function mergeTests(first, second) {
+    var out = [];
+    var seen = {};
+    first.concat(second).forEach(function (t) {
+      var input = t.input || "";
+      var output = t.output || "";
+      if (!input.trim() && !output.trim()) return;
+      var key = input + "\u0000" + output;
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push({ input: input, output: output });
+    });
+    return out.slice(0, TEST_CAP);
+  }
+
+  function queueAutoGenerate() {
+    if (autoTimer) clearTimeout(autoTimer);
+    var requirement = $("code-requirement").value.trim();
+    if (requirement.length < 12) return;
+    if (tests.length && !generating) return;
+    autoTimer = setTimeout(function () {
+      autoTimer = null;
+      var text = $("code-requirement").value.trim();
+      if (text.length < 12 || generating) return;
+      if (tests.length) return;
+      generateTests({ silent: true });
+    }, 1400);
+  }
+
+  /* ---------------- 题目来源 ---------------- */
   function setRequirement(text) {
     var box = $("code-requirement");
     box.value = text;
     box.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  function clearTests() {
-    Array.prototype.forEach.call(document.querySelectorAll("#test-list .test-row"), function (row) {
-      row.remove();
-    });
+  function autoSizeProblem() {
+    var box = $("code-requirement");
+    box.style.height = "auto";
+    var need = box.scrollHeight + 2;
+    var max = Math.round(window.innerHeight * 0.46);
+    box.style.height = Math.min(Math.max(need, 132), max) + "px";
+    box.style.overflowY = need > max ? "auto" : "hidden";
   }
 
   function openBank() {
@@ -252,13 +335,13 @@
     $("bank-modal").hidden = true;
   }
 
-  async function loadBank(keyword) {
+  async function loadBank() {
     var list = $("bank-list");
     list.innerHTML = '<p class="ide-hint">加载中…</p>';
     try {
       var res = await V3.api("/api/v3/code/bank");
       bankItems = res.items || [];
-      renderBank(keyword);
+      renderBank("");
     } catch (err) {
       list.innerHTML = '<p class="ide-hint">' + V3.esc(err.message) + "</p>";
     }
@@ -272,7 +355,8 @@
       return (it.title + " " + it.chapter + " " + it.preview).toLowerCase().indexOf(kw) !== -1;
     });
     if (!items.length) {
-      list.innerHTML = '<p class="ide-hint">' + (bankItems.length ? "没有匹配的题目" : "题库里还没有 C++ 题目，先到错题本里 new 一道吧") + "</p>";
+      list.innerHTML = '<p class="ide-hint">' +
+        (bankItems.length ? "没有匹配的题目" : "题库里还没有 C++ 题目，先到错题本里新建一道吧") + "</p>";
       return;
     }
     list.innerHTML = "";
@@ -294,20 +378,16 @@
       var entry = await V3.api("/api/v3/code/entry/" + id);
       currentEntry = id;
       setRequirement(entry.problem || "");
-      if (entry.code) {
-        $("code-source").value = entry.code;
-      }
-      clearTests();
-      (entry.tests || []).forEach(function (t) { testRow(t.input, t.output); });
-      if (!document.querySelector("#test-list .test-row")) testRow("", "");
+      if (entry.code) $("code-source").value = entry.code;
       refreshGutter();
-      $("save-hint").textContent = "题目：" + (entry.title || "");
+      setTests(entry.tests || []);
+      $("crumb-title").textContent = entry.title || "题目";
+      $("prob-title").textContent = entry.title || "题目";
+      $("save-hint").textContent = "已载入题库题目";
+      autoSizeProblem();
       closeBank();
-      showTab("tests");
       V3.toast("已载入「" + (entry.title || "题目") + "」");
-      if (!hasContent(readTests()) && (entry.problem || "").trim()) {
-        extractTests(true);
-      }
+      if (!tests.length && (entry.problem || "").trim().length >= 12) generateTests({ silent: true });
     } catch (err) {
       V3.fail(err);
     }
@@ -325,8 +405,7 @@
     }
     var reader = new FileReader();
     reader.onload = async function () {
-      var hint = $("save-hint");
-      hint.textContent = "正在识别图片…";
+      $("save-hint").textContent = "正在识别图片…";
       try {
         var res = await V3.api("/api/ai/ocr", {
           method: "POST",
@@ -334,7 +413,7 @@
         });
         var text = (res.text || "").trim();
         if (!text) {
-          hint.textContent = "";
+          $("save-hint").textContent = "";
           V3.toast("图片里没识别到文字", "error");
           return;
         }
@@ -342,12 +421,10 @@
         if (box.value.indexOf(text) === -1) {
           setRequirement(box.value.trim() ? box.value.trim() + "\n\n" + text : text);
         }
-        hint.textContent = "已识别题面";
+        $("save-hint").textContent = "题面已识别";
         V3.toast("题面已识别");
-        autoTried = false;
-        if (!hasContent(readTests())) extractTests(true);
       } catch (err) {
-        hint.textContent = "";
+        $("save-hint").textContent = "";
         V3.fail(err);
       } finally {
         $("problem-image").value = "";
@@ -356,42 +433,17 @@
     reader.readAsDataURL(file);
   }
 
-  async function generateTests() {
-    var button = $("generate-tests");
-    var requirement = $("code-requirement").value.trim();
-    if (!requirement && !currentEntry) {
-      V3.toast("先把题目要求贴进来", "error");
-      return;
-    }
-    button.disabled = true;
-    var hint = $("extract-hint");
-    showTab("tests");
-    hint.textContent = "AI 正在读题、补边界数据…";
-    try {
-      var res = await V3.api("/api/v3/code/generate", {
-        method: "POST",
-        body: { requirement: requirement, entry_id: currentEntry, count: 10 }
-      });
-      fillTests(res.tests || []);
-      hint.textContent = res.note || "已生成测试点";
-      V3.toast("AI 出了 " + (res.tests || []).length + " 组测试点，已复核期望输出");
-    } catch (err) {
-      $("extract-hint").textContent = "";
-      V3.fail(err);
-    } finally {
-      button.disabled = false;
-    }
-  }
-
+  /* ---------------- 运行 ---------------- */
   async function runCode() {
     refreshGutter();
     var button = $("run-code");
     var stdinText = $("console-stdin").value;
     button.disabled = true;
-    showTab("output");
     $("verdict-box").hidden = true;
+    $("review-body").hidden = true;
+    $("console-out").hidden = false;
     status('<span class="v3-muted">编译并运行中…</span>');
-    consoleWrite("");
+    $("console-out").textContent = "";
     var started = Date.now();
     try {
       var res = await V3.api("/api/v3/code/run", {
@@ -406,14 +458,13 @@
       }
       var one = (res.results || [])[0] || {};
       var lines = [];
-      if (stdinText) lines.push("$ 键盘输入\n" + stdinText + "\n");
-      lines.push("$ 程序输出\n" + (one.output || "（没有输出）"));
-      if (one.stderr) lines.push("\n$ stderr\n" + one.stderr);
+      if (one.stderr) lines.push("$ stderr\n" + one.stderr + "\n");
+      lines.push(one.output || "（没有输出）");
       if (one.timeout) lines.push("\n（运行超时，已强制结束）");
-      lines.push("\n$ 退出码 " + (one.exit === null || one.exit === undefined ? "—" : one.exit));
       consoleWrite(lines.join("\n"));
-      $("console-status").textContent = "运行完成";
-      status('<span class="pass">运行完成</span> <span class="v3-muted">只跑控制台输入，不评测测试点</span>', cost);
+      $("console-status").textContent = "运行完成 · 退出码 " +
+        (one.exit === null || one.exit === undefined ? "—" : one.exit);
+      status('<span class="pass">运行完成</span> <span class="v3-muted">只跑自测输入，不评测测试点</span>', cost);
     } catch (err) {
       status('<span class="fail">' + V3.esc(err.message) + "</span>");
       consoleWrite("运行失败：" + err.message);
@@ -427,6 +478,8 @@
     var box = $("verdict-box");
     var grid = $("verdict-grid");
     box.hidden = false;
+    $("console-out").hidden = true;
+    $("review-body").hidden = true;
     var verdict = res.verdict || "WA";
     var badge = $("verdict-badge");
     badge.textContent = verdict;
@@ -451,30 +504,30 @@
         "\n期望：" + (r.expected || "（空）") +
         "\n实际：" + (r.output || "（空）");
       cell.addEventListener("click", function () {
-        consoleWrite("测试点 " + (i + 1) + "：" + (names[r.verdict] || r.verdict) +
+        $("console-out").hidden = false;
+        $("console-out").textContent = "测试点 " + (i + 1) + "：" + (names[r.verdict] || r.verdict) +
           "\n  输入：" + (r.input || "（空）") +
           "\n  期望：" + (r.expected || "（空）") +
           "\n  实际：" + (r.output || "（空）") +
           (r.stderr ? "\n  stderr：" + r.stderr : "") +
-          (r.timeout ? "\n  （超过 " + (r.time_limit || 3) + " 秒）" : ""));
+          (r.timeout ? "\n  （超过 " + (r.time_limit || 3) + " 秒）" : "");
       });
       grid.appendChild(cell);
     });
   }
 
   async function submitCode() {
-    var tests = readTests();
     if (!tests.length) {
-      V3.toast("还没有测试点：先在「测试数据」里加点，或用 AI 出测试点");
-      showTab("tests");
-      return;
+      V3.toast("还没有测试点，正在按题面生成…");
+      await generateTests({ silent: true });
+      if (!tests.length) return;
     }
     refreshGutter();
     var button = $("submit-code");
     button.disabled = true;
-    showTab("output");
     $("verdict-box").hidden = true;
-    consoleWrite("");
+    $("review-body").hidden = true;
+    $("console-out").hidden = true;
     status('<span class="v3-muted">评测中…</span>');
     var started = Date.now();
     try {
@@ -484,59 +537,49 @@
       });
       var cost = ((Date.now() - started) / 1000).toFixed(1) + "s";
       if (!res.compiled) {
-        $("verdict-box").hidden = false;
         var badge = $("verdict-badge");
+        $("verdict-box").hidden = false;
         badge.textContent = "CE";
         badge.className = "verdict-badge v-CE";
         $("verdict-text").textContent = "编译错误";
         $("verdict-grid").innerHTML = "";
-        consoleWrite("编译失败：\n" + (res.compile_error || "（没有错误信息）"));
+        $("console-out").hidden = false;
+        $("console-out").textContent = "编译失败：\n" + (res.compile_error || "（没有错误信息）");
         status('<span class="fail">Compile Error</span>', cost);
-        showTab("output");
         return;
       }
       renderVerdict(res);
-      var lines = [];
-      (res.results || []).forEach(function (r, i) {
-        lines.push("测试点 " + (i + 1) + "：" + r.verdict);
-        if (r.verdict !== "AC") {
-          lines.push("  输入：" + (r.input || "（空）"));
-          lines.push("  期望：" + (r.expected || "（空）"));
-          lines.push("  实际：" + (r.output || "（空）"));
-          if (r.stderr) lines.push("  stderr：" + r.stderr);
-        }
-      });
-      consoleWrite(lines.join("\n") || "（没有测试点）");
-      status('<span class="' + (res.verdict === "AC" ? "pass" : "fail") + '">' +
-        res.verdict + "</span> <span class=\"v3-muted\">" + res.passed + " / " + res.total + " 通过</span>", cost);
+      status('<span class="' + (res.verdict === "AC" ? "pass" : "fail") + '">' + res.verdict +
+        '</span> <span class="v3-muted">' + res.passed + " / " + res.total + " 通过</span>", cost);
     } catch (err) {
       status('<span class="fail">' + V3.esc(err.message) + "</span>");
-      consoleWrite("评测失败：" + err.message);
     } finally {
       button.disabled = false;
     }
   }
 
-  async function consoleRun() {
-    return runCode();
-  }
-
+  /* ---------------- AI 点评 ---------------- */
   async function aiReview() {
     $("ai-review").disabled = true;
-    showTab("review");
-    $("review-body").innerHTML = '<p class="v3-muted">AI 正在看你的代码…</p>';
+    showReview('<p class="v3-muted">AI 正在看你的代码…</p>');
     try {
       var res = await V3.api("/api/v3/code/review", {
         method: "POST",
-        body: { source: $("code-source").value, requirement: $("code-requirement").value, entry_id: currentEntry }
+        body: {
+          source: $("code-source").value,
+          requirement: $("code-requirement").value,
+          entry_id: currentEntry
+        }
       });
       var r = res.review;
-      $("review-body").innerHTML = '<p style="margin:0 0 6px"><strong>' + r.score + " 分</strong> · " + V3.esc(r.verdict) + "</p>" +
-        (r.bugs && r.bugs.length ? "<ul>" + r.bugs.map(function (b) { return "<li>" + V3.esc(b) + "</li>"; }).join("") + "</ul>" : "") +
+      showReview('<p class="rv-score"><strong>' + r.score + " 分</strong> · " + V3.esc(r.verdict) + "</p>" +
+        (r.bugs && r.bugs.length
+          ? "<ul>" + r.bugs.map(function (b) { return "<li>" + V3.esc(b) + "</li>"; }).join("") + "</ul>"
+          : "") +
         (r.style ? '<p class="v3-muted">风格：' + V3.esc(r.style) + "</p>" : "") +
-        (r.hint ? '<p class="v3-muted">下一步：' + V3.esc(r.hint) + "</p>" : "");
+        (r.hint ? '<p class="v3-muted">下一步：' + V3.esc(r.hint) + "</p>" : ""));
     } catch (err) {
-      $("review-body").innerHTML = '<p class="fail">' + V3.esc(err.message) + "</p>";
+      showReview('<p class="fail">' + V3.esc(err.message) + "</p>");
     } finally {
       $("ai-review").disabled = false;
     }
@@ -548,33 +591,40 @@
   source.addEventListener("input", refreshGutter);
   source.addEventListener("scroll", function () { $("gutter").scrollTop = source.scrollTop; });
 
-  Array.prototype.forEach.call(document.querySelectorAll(".ide-tab"), function (tab) {
-    tab.addEventListener("click", function () { showTab(tab.dataset.tab); });
+  $("code-requirement").addEventListener("input", function () {
+    autoSizeProblem();
+    window.requestAnimationFrame(autoSizeProblem);
+    queueAutoGenerate();
   });
+  window.addEventListener("resize", autoSizeProblem);
 
   $("toggle-problem").addEventListener("click", function () {
     var app = document.querySelector(".ide-app");
     var hidden = app.classList.toggle("problem-hidden");
-    $("toggle-problem").textContent = hidden ? "展开" : "收起";
+    $("toggle-problem").textContent = hidden ? "展开题目" : "收起题目";
   });
 
-  $("add-test").addEventListener("click", function () { testRow("", ""); });
+  $("toggle-console").addEventListener("click", function () {
+    document.querySelector(".ide-work").classList.toggle("console-hidden");
+  });
+
+  $("copy-code").addEventListener("click", function () {
+    copyText(source.value, "代码已复制");
+  });
+
   $("pick-bank").addEventListener("click", openBank);
   $("bank-close").addEventListener("click", closeBank);
-  $("bank-modal").addEventListener("click", function (event) { if (event.target === $("bank-modal")) closeBank(); });
+  $("bank-modal").addEventListener("click", function (event) {
+    if (event.target === $("bank-modal")) closeBank();
+  });
   $("bank-search").addEventListener("input", function () { renderBank(this.value); });
   $("pick-image").addEventListener("click", function () { $("problem-image").click(); });
   $("problem-image").addEventListener("change", function () { pickImage(this.files[0]); });
-  $("generate-tests").addEventListener("click", generateTests);
-  $("extract-tests").addEventListener("click", function () { extractTests(false); });
+  $("regenerate").addEventListener("click", function () { generateTests({}); });
   $("run-code").addEventListener("click", runCode);
   $("submit-code").addEventListener("click", submitCode);
-  $("console-run").addEventListener("click", consoleRun);
-  $("console-clear").addEventListener("click", function () {
-    consoleWrite("（还没有运行）");
-    $("console-status").textContent = "";
-  });
   $("ai-review").addEventListener("click", aiReview);
+
   $("save-code").addEventListener("click", async function () {
     if (!currentEntry) {
       V3.toast("先从题库选一道题，或在错题详情里进来", "error");
@@ -583,23 +633,22 @@
     try {
       await V3.api("/api/v3/code/save", {
         method: "POST",
-        body: { entry_id: currentEntry, source: $("code-source").value, tests: readTests(), notes: $("code-requirement").value }
+        body: {
+          entry_id: currentEntry,
+          source: source.value,
+          tests: tests,
+          notes: $("code-requirement").value
+        }
       });
       V3.toast("已保存");
+      $("save-hint").textContent = "已保存";
     } catch (err) {
       V3.fail(err);
     }
   });
 
-  var autoTried = false;
-  $("code-requirement").addEventListener("blur", function () {
-    if (autoTried || hasContent(readTests())) return;
-    if (!$("code-requirement").value.trim()) return;
-    autoTried = true;
-    extractTests(false);
-  });
-
   refreshGutter();
+  autoSizeProblem();
 
   (async function () {
     try {
@@ -612,19 +661,16 @@
           var entry = await V3.api("/api/v3/code/entry/" + entryId);
           $("code-requirement").value = entry.problem || "";
           if (entry.code) source.value = entry.code;
-          if (entry.tests && entry.tests.length) {
-            entry.tests.forEach(function (t) { testRow(t.input, t.output); });
-          }
+          $("crumb-title").textContent = entry.title || "题目";
+          $("prob-title").textContent = entry.title || "题目";
           $("save-hint").textContent = "绑定题目：" + (entry.title || "");
+          autoSizeProblem();
+          refreshGutter();
+          setTests(entry.tests || []);
+          if (!tests.length && (entry.problem || "").trim().length >= 12) generateTests({ silent: true });
         } catch (err) {
           /* 普通演练模式 */
         }
-      }
-      if (!document.querySelector("#test-list .test-row")) testRow("", "");
-      refreshGutter();
-      if (entryId && !hasContent(readTests()) && $("code-requirement").value.trim()) {
-        autoTried = true;
-        extractTests(false);
       }
     } catch (err) {
       V3.fail(err);

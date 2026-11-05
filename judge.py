@@ -13,7 +13,7 @@ JUDGE_IMAGE = os.environ.get("MATH_JUDGE_IMAGE", "secondpass-judge:latest")
 COMPILE_TIMEOUT = 20
 RUN_TIMEOUT = 3
 MAX_SOURCE = 60000
-MAX_TESTS = 8
+MAX_TESTS = 12
 
 
 class JudgeUnavailable(RuntimeError):

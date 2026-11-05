@@ -5,37 +5,54 @@
 <div class="ide-app">
   <header class="ide-head">
     <div class="ide-head-left">
-      <h1>IDE</h1>
-      <span class="v3-muted">写 C++ · 在线编译 · 跑测试点</span>
+      <span class="ide-crumb">题目列表 / <strong id="crumb-title">未命名题目</strong></span>
       <span class="v3-chip" id="judge-status">检测判题环境…</span>
+      <span class="ide-save-hint" id="save-hint"></span>
     </div>
     <div class="ide-head-right">
-      <span class="v3-muted" id="save-hint"></span>
+      <button class="ide-btn small ghost" id="pick-bank" type="button" title="从错题里的 C++ 题中选一道">题库</button>
+      <button class="ide-btn small ghost" id="pick-image" type="button" title="上传题目照片，AI 识别成文字">图片</button>
+      <button class="ide-btn small ghost" id="toggle-problem" type="button">收起题目</button>
     </div>
   </header>
 
   <div class="ide-main" id="ide-main">
-    <aside class="ide-pane ide-problem" id="problem-pane">
-      <div class="ide-pane-head">
-        <span>题目描述</span>
-        <span class="ide-head-actions">
-          <button class="ide-mini" id="pick-bank" type="button" title="从题库里选一道 C++ 题">题库</button>
-          <button class="ide-mini" id="pick-image" type="button" title="上传题目照片，AI 识别成文字">图片</button>
-          <button class="ide-mini" id="toggle-problem" type="button" title="收起题目">收起</button>
-        </span>
-      </div>
-      <textarea class="ide-problem-text" id="code-requirement" spellcheck="false"
-        placeholder="把题目要求贴进来，或者从错题里带过来。&#10;&#10;题面里有「样例输入 / 样例输出」时会自动变成测试点；也可以让 AI 读题后自己出测试数据。"></textarea>
-    </aside>
+    <section class="ide-problem" id="problem-pane">
+      <div class="ide-problem-scroll">
+        <h1 class="prob-title" id="prob-title">题目</h1>
+        <p class="prob-limits">时间限制 1.00 s · 内存限制 256 MB · <span id="prob-tests">测试点 0 组</span></p>
 
-    <section class="ide-pane ide-editor">
-      <div class="ide-toolbar">
-        <button class="ide-btn primary" id="run-code" type="button">运行 <kbd>F9</kbd></button>
-        <button class="ide-btn submit" id="submit-code" type="button">提交评测</button>
-        <button class="ide-btn" id="ai-review" type="button">AI 点评</button>
-        <button class="ide-btn" id="save-code" type="button">保存</button>
-        <span class="ide-toolbar-hint">Tab 缩进 · Shift+Tab 反缩进 · Ctrl/⌘+Enter 提交</span>
+        <h3 class="prob-h">题目描述</h3>
+        <textarea id="code-requirement" class="ide-problem-text" spellcheck="false"
+          placeholder="把题面贴进来，或者从题库／图片带过来。&#10;&#10;写完之后会自动读题、生成并复核测试点。"></textarea>
+
+        <div class="gen-line">
+          <div class="gen-bar"><i class="gen-fill" id="gen-fill"></i></div>
+          <span id="gen-text">写入题目后自动生成测试点</span>
+          <button class="ide-mini" id="regenerate" type="button">重新生成</button>
+        </div>
+
+        <h3 class="prob-h">输入输出样例</h3>
+        <div id="samples"><p class="ide-hint">还没有测试点。把题目写进上面的框里就会自动生成。</p></div>
+
+        <h3 class="prob-h">说明/提示</h3>
+        <p class="ide-hint">测试点由 AI 读题后生成并复核，覆盖样例、边界（0、负数、极值）和特殊情况；
+          「自测输入」只是喂给程序的键盘输入，不参与评测，点「提交评测」才会逐点比对。</p>
       </div>
+    </section>
+
+    <section class="ide-work">
+      <div class="ide-work-head">
+        <span class="ide-work-title">代码</span>
+        <button class="ide-mini" id="toggle-console" type="button" title="收起/展开自测面板">自测</button>
+        <span class="ide-lang">C++17 (g++)</span>
+        <span class="ide-work-spacer"></span>
+        <button class="ide-btn small ghost" id="copy-code" type="button">复制</button>
+        <button class="ide-btn small ghost" id="ai-review" type="button">AI 点评</button>
+        <button class="ide-btn small ghost" id="save-code" type="button">保存</button>
+        <button class="ide-btn small submit" id="submit-code" type="button">提交评测</button>
+      </div>
+
       <div class="ide-editor-body">
         <pre class="ide-gutter" id="gutter" aria-hidden="true">1</pre>
         <textarea class="ide-code" id="code-source" spellcheck="false" wrap="off"
@@ -48,44 +65,29 @@ int main() {
     return 0;
 }</textarea>
       </div>
-    </section>
 
-    <section class="ide-pane ide-side">
-      <div class="ide-tabs" role="tablist">
-        <button class="ide-tab active" data-tab="output" type="button">输出</button>
-        <button class="ide-tab" data-tab="tests" type="button">测试数据</button>
-        <button class="ide-tab" data-tab="review" type="button">AI 点评</button>
-      </div>
-      <div class="ide-tabpane" data-pane="output">
-        <div class="verdict-box" id="verdict-box" hidden>
-          <div class="verdict-summary">
-            <span class="verdict-badge" id="verdict-badge">AC</span>
-            <span class="verdict-text" id="verdict-text"></span>
+      <div class="ide-console-panel" id="console-panel">
+        <div class="ide-console-head">
+          <span class="ide-console-tab active">输入</span>
+          <span class="ide-console-tab">输出</span>
+          <span class="ide-work-spacer"></span>
+          <span class="ide-hint" id="console-status"></span>
+          <button class="ide-btn small primary" id="run-code" type="button">运行 <kbd>F9</kbd></button>
+        </div>
+        <div class="ide-console-body">
+          <textarea class="ide-stdin" id="console-stdin" spellcheck="false"
+            placeholder="自测输入：程序用 cin 读到的内容，原样写在这里"></textarea>
+          <div class="ide-out-wrap">
+            <div class="verdict-box" id="verdict-box" hidden>
+              <div class="verdict-summary">
+                <span class="verdict-badge" id="verdict-badge">AC</span>
+                <span class="verdict-text" id="verdict-text"></span>
+              </div>
+              <div class="verdict-grid" id="verdict-grid"></div>
+            </div>
+            <div class="ide-review" id="review-body" hidden></div>
+            <pre class="ide-console" id="console-out">在左边写代码，点「运行」跑自测输入；点「提交评测」拿测试点判分。</pre>
           </div>
-          <div class="verdict-grid" id="verdict-grid"></div>
-        </div>
-        <pre class="ide-console" id="console-out">直接在编辑器里写代码，按 F9 或点「运行」跑一次；点「提交评测」才会拿测试数据判分。</pre>
-        <div class="ide-console-foot">
-          <textarea class="ide-stdin" id="console-stdin" spellcheck="false" placeholder="键盘输入：程序用 cin 读的内容，原样写在这里"></textarea>
-          <div class="ide-console-btns">
-            <button class="ide-btn small primary" id="console-run" type="button">用这段输入运行</button>
-            <button class="ide-btn small ghost" id="console-clear" type="button">清空</button>
-            <span class="ide-hint" id="console-status"></span>
-          </div>
-        </div>
-      </div>
-      <div class="ide-tabpane" data-pane="tests" hidden>
-        <div class="ide-tests-actions">
-          <button class="ide-btn small" id="add-test" type="button">+ 测试点</button>
-          <button class="ide-btn small ghost" id="extract-tests" type="button">从题面提取</button>
-          <button class="ide-btn small ghost" id="generate-tests" type="button">AI 出测试点</button>
-        </div>
-        <p class="ide-hint" id="extract-hint">「输入」就是程序用 cin 读到的内容；AI 出题会按题面自己补边界数据。</p>
-        <div id="test-list"></div>
-      </div>
-      <div class="ide-tabpane" data-pane="review" hidden>
-        <div id="review-body" class="ide-review">
-          <p class="ide-hint">点上方「AI 点评」，助教会看你的逻辑、边界和复杂度。</p>
         </div>
       </div>
     </section>
@@ -94,6 +96,7 @@ int main() {
   <footer class="ide-statusbar">
     <span id="run-summary">就绪</span>
     <span class="ide-status-right">
+      <span class="ide-hint">Tab 缩进 · Shift+Tab 反缩进 · Ctrl/⌘+Enter 提交</span>
       <span id="status-extra"></span>
     </span>
   </footer>
