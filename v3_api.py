@@ -772,17 +772,27 @@ def api_grade():
     return jsonify(ok=True, grade=result)
 
 
-def _parse_grade(text):
-    cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
-    data = {}
-    for candidate in (cleaned, (re.search(r"\{.*\}", cleaned, re.S) or [None])[0] if "{" in cleaned else None):
+def _parse_json(text):
+    """把模型返回的文本解析成 dict（容忍代码围栏和前后废话）。"""
+    cleaned = re.sub(r"^```(?:json)?|```$", "", str(text or "").strip(), flags=re.M).strip()
+    candidates = [cleaned]
+    match = re.search(r"\{.*\}", cleaned, re.S)
+    if match:
+        candidates.append(match.group(0))
+    for candidate in candidates:
         if not candidate:
             continue
         try:
-            data = json.loads(candidate)
-            break
+            parsed = json.loads(candidate)
         except ValueError:
             continue
+        if isinstance(parsed, dict):
+            return parsed
+    return {}
+
+
+def _parse_grade(text):
+    data = _parse_json(text)
     try:
         score = max(0, min(100, int(data.get("score", 0))))
     except (TypeError, ValueError):
@@ -922,7 +932,7 @@ def api_code_extract():
         reply, _model, _usage = core.call_ai({**config, "structured_output": True}, messages, config.get("model"))
     except core.AIError as exc:
         fail(str(exc), 502)
-    parsed = _parse_grade(reply)
+    parsed = _parse_json(reply)
     picked = []
     for item in parsed.get("tests") or []:
         if not isinstance(item, dict):
@@ -1028,6 +1038,87 @@ def api_code_entry(entry_id):
         tests=json_list(row["code_tests"]),
         notes=row["code_notes"] or "",
     )
+
+
+@bp.get("/api/v3/code/bank")
+def api_code_bank():
+    """用户题库里程序设计类的题目，供 IDE 直接选用。"""
+    db_ = db()
+    rows = db_.execute(
+        "SELECT e.id, e.title, e.chapter, e.status, e.code, e.code_tests, e.problem, e.ocr_text "
+        "FROM entries e JOIN subjects s ON s.id = e.subject AND s.user_id = e.user_id "
+        "WHERE e.user_id = ? AND s.kind = 'cpp' "
+        "ORDER BY e.created_at DESC LIMIT 100",
+        (uid(),),
+    ).fetchall()
+    items = []
+    for row in rows:
+        problem = (row["problem"] or row["ocr_text"] or "").strip()
+        tests = json_list(row["code_tests"])
+        items.append({
+            "id": row["id"],
+            "title": entry_label(row),
+            "chapter": row["chapter"] or "",
+            "status": row["status"],
+            "has_code": bool((row["code"] or "").strip()),
+            "test_count": len(tests),
+            "preview": " ".join(problem.split())[:110],
+        })
+    return jsonify(ok=True, items=items)
+
+
+CODE_GENERATE_SYSTEM = (
+    "你是程序设计课的命题助教。请根据题面生成可用于自动判题的测试数据。\n"
+    "要求：1) 每组给出程序读入的完整标准输入 input，以及标准解法应输出的 output；\n"
+    "2) 覆盖：题面样例、边界情况（最小值、最大值、单元素、重复、无解等，视题目而定）；\n"
+    "3) 输入输出必须是确定性的纯文本，不要写解释；\n"
+    "4) 只返回 JSON：{\"tests\":[{\"input\":\"1 2\",\"output\":\"3\",\"why\":\"样例\"}]}，"
+    "最多 {count} 组。不要代码围栏。"
+)
+
+
+@bp.post("/api/v3/code/generate")
+def api_code_generate():
+    """让 AI 读题后自己出测试数据（不只是抄题面里的样例）。"""
+    data = body()
+    text = str(data.get("requirement") or "")[:20000]
+    entry_id = str(data.get("entry_id") or "")
+    if not text.strip() and entry_id:
+        row = db().execute("SELECT problem, ocr_text FROM entries WHERE id=? AND user_id=?",
+                           (entry_id, uid())).fetchone()
+        if row:
+            text = (row["problem"] or row["ocr_text"] or "")[:20000]
+    if not text.strip():
+        fail("先把题目要求贴进来，AI 才有得分析")
+    try:
+        count = max(1, min(8, int(data.get("count") or 5)))
+    except (TypeError, ValueError):
+        count = 5
+    db_ = db()
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "solve")
+    messages = [
+        {"role": "system", "content": CODE_GENERATE_SYSTEM.replace("{count}", str(count))},
+        {"role": "user", "content": text[:16000]},
+    ]
+    try:
+        reply, _model, _usage = core.call_ai({**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    parsed = _parse_json(reply)
+    picked = []
+    for item in parsed.get("tests") or []:
+        if not isinstance(item, dict):
+            continue
+        stdin = str(item.get("input") or "").strip("\n")[:2000]
+        stdout = str(item.get("output") or "").strip("\n")[:2000]
+        if stdin.strip() or stdout.strip():
+            picked.append({"input": stdin, "output": stdout, "ai": True,
+                           "why": str(item.get("why") or "")[:60]})
+    if not picked:
+        fail("AI 没给出可用的测试数据，换个说法再试一次")
+    return jsonify(ok=True, tests=picked[:count], mode="ai",
+                   note="AI 出了 %d 组测试点，建议先核对再判分" % len(picked[:count]))
 
 
 @bp.get("/api/v3/code/health")

@@ -1602,10 +1602,94 @@
       input.click();
     });
     if (!file) return;
-    toast("AI 正在批阅你的解题过程…", "info", 6000);
-    const image = await compressImageFile(file);
-    const data = await api("/api/v3/grade", { method: "POST", body: { entry_id: entry.id, image } });
-    renderGradeCard(bar, data.grade);
+    const progress = startGradeProgress(bar, "正在压缩图片…");
+    try {
+      const image = await compressImageFile(file);
+      progress.step("AI 正在看你写的每一步…");
+      const data = await api("/api/v3/grade", { method: "POST", body: { entry_id: entry.id, image } });
+      progress.finish();
+      renderGradeCard(bar, data.grade);
+    } catch (err) {
+      progress.fail(err.message || "批阅失败");
+      throw err;
+    }
+  }
+
+  // 批阅进度：图片上传 + 模型推理要十几秒，给一个会走的进度条和阶段提示
+  function startGradeProgress(anchor, label) {
+    const host = anchor.parentElement || anchor;
+    const old = host.querySelector(".v3-grade-progress");
+    if (old) old.remove();
+
+    const box = el("div", { class: "v3-grade-progress" });
+    const head = el("div", { class: "v3-grade-progress-head" });
+    head.appendChild(el("span", { class: "v3-grade-dot" }));
+    const labelEl = el("span", { class: "v3-grade-label", text: label });
+    const pctEl = el("span", { class: "v3-grade-pct", text: "0%" });
+    head.appendChild(labelEl);
+    head.appendChild(pctEl);
+    box.appendChild(head);
+
+    const track = el("div", { class: "v3-grade-track" });
+    const fill = el("div", { class: "v3-grade-fill" });
+    track.appendChild(fill);
+    box.appendChild(track);
+    host.appendChild(box);
+
+    let pct = 4;
+    let done = false;
+    const steps = [
+      "正在压缩图片…",
+      "AI 正在看你写的每一步…",
+      "定位错在哪一步…",
+      "整理错因和正确解法…"
+    ];
+    let stepIndex = 0;
+    const paint = () => {
+      fill.style.width = `${pct.toFixed(1)}%`;
+      pctEl.textContent = `${Math.round(pct)}%`;
+    };
+    paint();
+
+    // 越接近 90% 走得越慢，避免“卡住”的错觉
+    const tick = window.setInterval(() => {
+      if (done) return;
+      pct += Math.max(0.35, (92 - pct) * 0.05);
+      if (pct > 92) pct = 92;
+      paint();
+    }, 220);
+
+    const stepTimer = window.setInterval(() => {
+      if (done) return;
+      stepIndex = Math.min(stepIndex + 1, steps.length - 1);
+      labelEl.textContent = steps[stepIndex];
+    }, 2600);
+
+    const stop = () => {
+      done = true;
+      window.clearInterval(tick);
+      window.clearInterval(stepTimer);
+    };
+
+    return {
+      step(text) { if (!done && text) labelEl.textContent = text; },
+      finish() {
+        stop();
+        pct = 100;
+        paint();
+        labelEl.textContent = "批阅完成";
+        box.classList.add("is-done");
+        window.setTimeout(() => box.remove(), 420);
+      },
+      fail(message) {
+        stop();
+        box.classList.add("is-failed");
+        labelEl.textContent = message || "批阅失败";
+        fill.style.width = "100%";
+        pctEl.textContent = "";
+        window.setTimeout(() => box.remove(), 2200);
+      }
+    };
   }
 
   function renderGradeCard(anchor, grade) {
@@ -4368,6 +4452,8 @@
     openDetail,
     subjectLabel,
     subjectKind,
+    gradeEntryPhoto,
+    startGradeProgress,
     openChat(entry) {
       state.detail = entry;
       openChatDialog();

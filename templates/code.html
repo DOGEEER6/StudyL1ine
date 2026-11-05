@@ -18,10 +18,14 @@
     <aside class="ide-pane ide-problem" id="problem-pane">
       <div class="ide-pane-head">
         <span>题目描述</span>
-        <button class="ide-mini" id="toggle-problem" type="button" title="收起题目">收起</button>
+        <span class="ide-head-actions">
+          <button class="ide-mini" id="pick-bank" type="button" title="从题库里选一道 C++ 题">题库</button>
+          <button class="ide-mini" id="pick-image" type="button" title="上传题目照片，AI 识别成文字">图片</button>
+          <button class="ide-mini" id="toggle-problem" type="button" title="收起题目">收起</button>
+        </span>
       </div>
       <textarea class="ide-problem-text" id="code-requirement" spellcheck="false"
-        placeholder="把题目要求贴进来，或者从错题里带过来。&#10;&#10;题面里有「样例输入 / 样例输出」时，会自动变成测试点。"></textarea>
+        placeholder="把题目要求贴进来，或者从错题里带过来。&#10;&#10;题面里有「样例输入 / 样例输出」时会自动变成测试点；也可以让 AI 读题后自己出测试数据。"></textarea>
     </aside>
 
     <section class="ide-pane ide-editor">
@@ -55,8 +59,9 @@ int main() {
         <div class="ide-tests-actions">
           <button class="ide-btn small" id="add-test" type="button">+ 测试点</button>
           <button class="ide-btn small ghost" id="extract-tests" type="button">从题面提取</button>
+          <button class="ide-btn small ghost" id="generate-tests" type="button">AI 出测试点</button>
         </div>
-        <p class="ide-hint" id="extract-hint">测试点的「输入」就是程序用 cin 读到的内容。</p>
+        <p class="ide-hint" id="extract-hint">「输入」就是程序用 cin 读到的内容；AI 出题会按题面自己补边界数据。</p>
         <div id="test-list"></div>
       </div>
       <div class="ide-tabpane" data-pane="output" hidden>
@@ -84,6 +89,18 @@ int main() {
       <span id="status-extra"></span>
     </span>
   </footer>
+</div>
+
+<input type="file" id="problem-image" accept="image/*" hidden>
+<div class="ide-modal" id="bank-modal" hidden>
+  <div class="ide-modal-card" role="dialog" aria-label="从题库选择题目">
+    <header class="ide-modal-head">
+      <strong>从题库选择 C++ 题目</strong>
+      <button class="ide-mini" id="bank-close" type="button">关闭</button>
+    </header>
+    <input class="ide-input" id="bank-search" type="search" placeholder="搜索标题或题面关键字…">
+    <div class="ide-bank-list" id="bank-list"><p class="ide-hint">加载中…</p></div>
+  </div>
 </div>
 {% endblock %}
 {% block script %}

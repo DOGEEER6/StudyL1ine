@@ -1,6 +1,8 @@
 /* v3-code.js — IDE 页面（洛谷风格）：编辑、运行、测试点、控制台。 */
 (function () {
   var entryId = document.body.dataset.entryId || "";
+  var currentEntry = entryId;
+  var bankItems = [];
   var $ = function (id) { return document.getElementById(id); };
   var INDENT = "    ";
 
@@ -125,7 +127,9 @@
   function testRow(input, output) {
     var row = document.createElement("div");
     row.className = "test-row";
-    row.innerHTML = '<textarea class="v3-textarea" placeholder="输入（程序 cin 读到的内容）" spellcheck="false"></textarea>' +
+    row.innerHTML = '<label class="test-lab">输入</label>' +
+      '<textarea class="v3-textarea" placeholder="输入（程序 cin 读到的内容）" spellcheck="false"></textarea>' +
+      '<label class="test-lab">期望输出</label>' +
       '<textarea class="v3-textarea" placeholder="期望输出" spellcheck="false"></textarea>' +
       '<button class="ide-btn small ghost" type="button" title="删除">×</button>';
     row.querySelectorAll("textarea")[0].value = input || "";
@@ -202,7 +206,7 @@
     try {
       var res = await V3.api("/api/v3/code/extract", {
         method: "POST",
-        body: { requirement: requirement, entry_id: entryId, use_ai: !!useAi }
+        body: { requirement: requirement, entry_id: currentEntry, use_ai: !!useAi }
       });
       if (!res.tests || !res.tests.length) {
         if (!useAi) {
@@ -216,6 +220,160 @@
       showTab("tests");
       $("extract-hint").textContent = (res.note || "") + "（可以先核对再运行）";
       V3.toast("已添加 " + res.tests.length + " 组测试点");
+    } catch (err) {
+      $("extract-hint").textContent = "";
+      V3.fail(err);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /* ---------------- 题目来源：题库 / 图片 ---------------- */
+  function setRequirement(text) {
+    var box = $("code-requirement");
+    box.value = text;
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function clearTests() {
+    Array.prototype.forEach.call(document.querySelectorAll("#test-list .test-row"), function (row) {
+      row.remove();
+    });
+  }
+
+  function openBank() {
+    $("bank-modal").hidden = false;
+    $("bank-search").value = "";
+    loadBank("");
+    $("bank-search").focus();
+  }
+
+  function closeBank() {
+    $("bank-modal").hidden = true;
+  }
+
+  async function loadBank(keyword) {
+    var list = $("bank-list");
+    list.innerHTML = '<p class="ide-hint">加载中…</p>';
+    try {
+      var res = await V3.api("/api/v3/code/bank");
+      bankItems = res.items || [];
+      renderBank(keyword);
+    } catch (err) {
+      list.innerHTML = '<p class="ide-hint">' + V3.esc(err.message) + "</p>";
+    }
+  }
+
+  function renderBank(keyword) {
+    var list = $("bank-list");
+    var kw = (keyword || "").trim().toLowerCase();
+    var items = bankItems.filter(function (it) {
+      if (!kw) return true;
+      return (it.title + " " + it.chapter + " " + it.preview).toLowerCase().indexOf(kw) !== -1;
+    });
+    if (!items.length) {
+      list.innerHTML = '<p class="ide-hint">' + (bankItems.length ? "没有匹配的题目" : "题库里还没有 C++ 题目，先到错题本里 new 一道吧") + "</p>";
+      return;
+    }
+    list.innerHTML = "";
+    items.forEach(function (it) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "ide-bank-item";
+      btn.innerHTML = "<strong>" + V3.esc(it.title) + "</strong>" +
+        '<span class="ide-bank-meta">' + V3.esc([it.chapter, it.test_count ? it.test_count + " 组测试点" : "无测试点",
+          it.has_code ? "有代码" : ""].filter(Boolean).join(" · ")) + "</span>" +
+        '<span class="ide-bank-preview">' + V3.esc(it.preview || "（题面为空）") + "</span>";
+      btn.addEventListener("click", function () { loadEntry(it.id); });
+      list.appendChild(btn);
+    });
+  }
+
+  async function loadEntry(id) {
+    try {
+      var entry = await V3.api("/api/v3/code/entry/" + id);
+      currentEntry = id;
+      setRequirement(entry.problem || "");
+      if (entry.code) {
+        $("code-source").value = entry.code;
+      }
+      clearTests();
+      (entry.tests || []).forEach(function (t) { testRow(t.input, t.output); });
+      if (!document.querySelector("#test-list .test-row")) testRow("", "");
+      refreshGutter();
+      $("save-hint").textContent = "题目：" + (entry.title || "");
+      closeBank();
+      showTab("tests");
+      V3.toast("已载入「" + (entry.title || "题目") + "」");
+      if (!hasContent(readTests()) && (entry.problem || "").trim()) {
+        extractTests(true);
+      }
+    } catch (err) {
+      V3.fail(err);
+    }
+  }
+
+  function pickImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      V3.toast("请选择图片文件", "error");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      V3.toast("图片太大了，换一张小一点的", "error");
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = async function () {
+      var hint = $("save-hint");
+      hint.textContent = "正在识别图片…";
+      try {
+        var res = await V3.api("/api/ai/ocr", {
+          method: "POST",
+          body: { attachments: [{ data: String(reader.result) }], kind: "cpp" }
+        });
+        var text = (res.text || "").trim();
+        if (!text) {
+          hint.textContent = "";
+          V3.toast("图片里没识别到文字", "error");
+          return;
+        }
+        var box = $("code-requirement");
+        if (box.value.indexOf(text) === -1) {
+          setRequirement(box.value.trim() ? box.value.trim() + "\n\n" + text : text);
+        }
+        hint.textContent = "已识别题面";
+        V3.toast("题面已识别");
+        autoTried = false;
+        if (!hasContent(readTests())) extractTests(true);
+      } catch (err) {
+        hint.textContent = "";
+        V3.fail(err);
+      } finally {
+        $("problem-image").value = "";
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function generateTests() {
+    var button = $("generate-tests");
+    var requirement = $("code-requirement").value.trim();
+    if (!requirement && !currentEntry) {
+      V3.toast("先把题目要求贴进来", "error");
+      return;
+    }
+    button.disabled = true;
+    $("extract-hint").textContent = "AI 正在读题、补边界数据…";
+    try {
+      var res = await V3.api("/api/v3/code/generate", {
+        method: "POST",
+        body: { requirement: requirement, entry_id: currentEntry, count: 5 }
+      });
+      fillTests(res.tests || []);
+      showTab("tests");
+      $("extract-hint").textContent = res.note || "已生成测试点";
+      V3.toast("AI 出了 " + (res.tests || []).length + " 组测试点");
     } catch (err) {
       $("extract-hint").textContent = "";
       V3.fail(err);
@@ -304,7 +462,7 @@
     try {
       var res = await V3.api("/api/v3/code/review", {
         method: "POST",
-        body: { source: $("code-source").value, requirement: $("code-requirement").value, entry_id: entryId }
+        body: { source: $("code-source").value, requirement: $("code-requirement").value, entry_id: currentEntry }
       });
       var r = res.review;
       $("review-body").innerHTML = '<p style="margin:0 0 6px"><strong>' + r.score + " 分</strong> · " + V3.esc(r.verdict) + "</p>" +
@@ -335,6 +493,13 @@
   });
 
   $("add-test").addEventListener("click", function () { testRow("", ""); });
+  $("pick-bank").addEventListener("click", openBank);
+  $("bank-close").addEventListener("click", closeBank);
+  $("bank-modal").addEventListener("click", function (event) { if (event.target === $("bank-modal")) closeBank(); });
+  $("bank-search").addEventListener("input", function () { renderBank(this.value); });
+  $("pick-image").addEventListener("click", function () { $("problem-image").click(); });
+  $("problem-image").addEventListener("change", function () { pickImage(this.files[0]); });
+  $("generate-tests").addEventListener("click", generateTests);
   $("extract-tests").addEventListener("click", function () { extractTests(false); });
   $("run-code").addEventListener("click", runCode);
   $("console-run").addEventListener("click", consoleRun);
@@ -344,14 +509,14 @@
   });
   $("ai-review").addEventListener("click", aiReview);
   $("save-code").addEventListener("click", async function () {
-    if (!entryId) {
-      V3.toast("从错题详情进入才能保存", "error");
+    if (!currentEntry) {
+      V3.toast("先从题库选一道题，或在错题详情里进来", "error");
       return;
     }
     try {
       await V3.api("/api/v3/code/save", {
         method: "POST",
-        body: { entry_id: entryId, source: $("code-source").value, tests: readTests(), notes: $("code-requirement").value }
+        body: { entry_id: currentEntry, source: $("code-source").value, tests: readTests(), notes: $("code-requirement").value }
       });
       V3.toast("已保存");
     } catch (err) {
