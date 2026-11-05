@@ -10,6 +10,7 @@
       <span class="ide-save-hint" id="save-hint"></span>
     </div>
     <div class="ide-head-right">
+      <button class="ide-btn small ghost" id="pick-practice" type="button" title="输入知识点，AI 现场出一道题">AI 出题</button>
       <button class="ide-btn small ghost" id="pick-bank" type="button" title="从错题里的 C++ 题中选一道">题库</button>
       <button class="ide-btn small ghost" id="pick-image" type="button" title="上传题目照片，AI 识别成文字">图片</button>
       <button class="ide-btn small ghost" id="toggle-problem" type="button">收起题目</button>
@@ -103,6 +104,42 @@ int main() {
 </div>
 
 <input type="file" id="problem-image" accept="image/*" hidden>
+<div class="ide-modal" id="practice-modal" hidden>
+  <div class="ide-modal-card practice-card" role="dialog" aria-label="AI 出题练习">
+    <header class="ide-modal-head">
+      <strong>AI 出题练习</strong>
+      <button class="ide-mini" id="practice-close" type="button">关闭</button>
+    </header>
+    <p class="ide-hint">写一个想练的知识点，AI 出一道能在这里直接判分的题（题面 + 样例由 AI 生成，测试点随后自动补）。</p>
+    <input class="ide-input" id="practice-topic" type="text" placeholder="例如：二分查找 / 前缀和 / 结构体排序 / 递归全排列">
+    <div class="practice-row">
+      <select class="ide-input" id="practice-level">
+        <option value="入门">入门</option>
+        <option value="基础" selected>基础</option>
+        <option value="提高">提高</option>
+        <option value="综合">综合</option>
+      </select>
+    </div>
+    <div class="practice-chips" id="practice-chips">
+      <button class="ide-mini" type="button" data-topic="数组遍历与求和">数组遍历</button>
+      <button class="ide-mini" type="button" data-topic="循环与条件判断">循环条件</button>
+      <button class="ide-mini" type="button" data-topic="字符串处理">字符串</button>
+      <button class="ide-mini" type="button" data-topic="排序算法">排序</button>
+      <button class="ide-mini" type="button" data-topic="结构体与自定义排序">结构体</button>
+      <button class="ide-mini" type="button" data-topic="递归">递归</button>
+      <button class="ide-mini" type="button" data-topic="二分查找">二分查找</button>
+      <button class="ide-mini" type="button" data-topic="前缀和与差分">前缀和</button>
+      <button class="ide-mini" type="button" data-topic="贪心">贪心</button>
+      <button class="ide-mini" type="button" data-topic="动态规划入门">动态规划</button>
+      <button class="ide-mini" type="button" data-topic="栈与队列">栈与队列</button>
+      <button class="ide-mini" type="button" data-topic="素数筛与因数">素数</button>
+    </div>
+    <div class="practice-actions">
+      <button class="ide-btn small primary" id="practice-go" type="button">生成题目</button>
+      <span class="ide-hint" id="practice-status"></span>
+    </div>
+  </div>
+</div>
 <div class="ide-modal" id="bank-modal" hidden>
   <div class="ide-modal-card" role="dialog" aria-label="从题库选择题目">
     <header class="ide-modal-head">

@@ -1028,3 +1028,12 @@ html {
   font-size: 14px;
   line-height: 1.75;
 }
+
+/* AI 出题练习弹层 */
+.practice-card { max-width: 560px; }
+.practice-row { display: flex; gap: 10px; margin-top: 10px; }
+.practice-row .ide-input { flex: 1; margin: 0; }
+.practice-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.practice-chips .ide-mini { background: #f1f6ff; border-color: #dbe6f8; color: #2b4a7a; }
+.practice-chips .ide-mini:hover { background: #e6efff; }
+.practice-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }

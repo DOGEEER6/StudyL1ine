@@ -74,9 +74,12 @@ def judge_cpp(source, tests):
 
     workdir = tempfile.mkdtemp(prefix="sp-judge-")
     try:
-        with open(os.path.join(workdir, "main.cpp"), "w", encoding="utf-8") as fh:
+        source_path = os.path.join(workdir, "main.cpp")
+        with open(source_path, "w", encoding="utf-8") as fh:
             fh.write(source)
         os.chmod(workdir, 0o777)
+        # systemd 的 UMask=0077 会让文件变成 0600，容器内的非映射用户读不到
+        os.chmod(source_path, 0o644)
         compile_cmd = _limits(["-v", f"{workdir}:/box", "-w", "/box", JUDGE_IMAGE,
                                "g++", "-O2", "-std=c++17", "-pipe", "-o", "prog", "main.cpp"])
         try:

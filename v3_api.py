@@ -922,8 +922,25 @@ def api_grade():
     return jsonify(ok=True, grade=result)
 
 
+def _salvage_tests(text):
+    """JSON 被 token 上限截断时，捞回已经写完整的测试点。"""
+    pairs = re.findall(
+        r'"input"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"output"\s*:\s*"((?:[^"\\]|\\.)*)"',
+        str(text or ""), re.S)
+    tests = []
+    for raw_in, raw_out in pairs:
+        try:
+            stdin = json.loads('"' + raw_in + '"')
+            stdout = json.loads('"' + raw_out + '"')
+        except ValueError:
+            continue
+        if stdin.strip() or stdout.strip():
+            tests.append({"input": stdin, "output": stdout})
+    return tests
+
+
 def _parse_json(text):
-    """把模型返回的文本解析成 dict（容忍代码围栏和前后废话）。"""
+    """把模型返回的文本解析成 dict（容忍代码围栏、前后废话，以及被截断的 JSON）。"""
     cleaned = re.sub(r"^```(?:json)?|```$", "", str(text or "").strip(), flags=re.M).strip()
     candidates = [cleaned]
     match = re.search(r"\{.*\}", cleaned, re.S)
@@ -938,6 +955,9 @@ def _parse_json(text):
             continue
         if isinstance(parsed, dict):
             return parsed
+    rescued = _salvage_tests(cleaned)
+    if rescued:
+        return {"tests": rescued, "truncated": True}
     return {}
 
 
@@ -1245,26 +1265,46 @@ CODE_GENERATE_SYSTEM = (
     "你是程序设计课的命题助教。请根据题面生成一套能真正判出对错的测试数据。\n"
     "目标：让「样例对了但逻辑错了」的程序也过不了，别只抄题面样例。\n"
     "每组必须给出：程序读入的完整标准输入 input，以及标准解法应输出的 output。\n"
-    "覆盖建议（按题目实际调整）：\n"
-    "- 题面样例 1~2 组；\n"
-    "- 边界：最小规模、最大规模、0、负数、空输入、单个元素；\n"
-    "- 特殊情况：全部相同、已有序、逆序、重复元素、无解；\n"
-    "- 易错点：会溢出/精度丢失的取值、多组数据、多余空格与换行。\n"
+    "格式铁律（最容易错的地方，务必按题面逐字满足）：\n"
+    "- 题面说「第二行 n 个整数」，那这一行就必须真的有 n 个整数，一个不能少；\n"
+    "- 题面说「接下来 m 行」，就必须真的有 m 行，每行字段数与题面一致；\n"
+    "- 输出行数/个数要与题面要求一致（例如要求输出 n 个数，output 里就必须是 n 个数）；\n"
+    "- 每个数字都要在题面给的数据范围内。\n"
+    "覆盖建议（按题目实际调整）：样例 1~2 组；边界（最小/最大规模、0、负数、单个元素）；"
+    "特殊情况（全相同、已有序、逆序、重复、无解）；易错点（溢出、多组数据、多余空格换行）。\n"
     "输入输出都必须是确定性纯文本，行尾不要多余空格，不要写解释。\n"
     "why 用 6 个字说明这组在考什么（如「最大规模」「负数边界」）。\n"
     "只返回 JSON：{\"tests\":[{\"input\":\"1 2\",\"output\":\"3\",\"why\":\"样例\"}]}，"
     "给 {count} 组。不要代码围栏。"
 )
 
+
 CODE_VERIFY_SYSTEM = (
-    "你是判题数据审核员。下面有题面和一批测试数据，请逐组核对「标准输入」跑标准程序"
-    "得到的输出是否真的等于「期望输出」。\n"
-    "1) 错的一律改正；2) 题意不清、输出不唯一的组直接删掉；\n"
-    "3) 如果某组输入明显不合法（缺参数、超出题面范围），删掉或改正；\n"
-    "4) 保持顺序和 why 字段，可以补充遗漏的边界组，但总数不超过 {count} 组。\n"
+    "你是判题数据审核员。下面是题面和一批测试数据，请逐组核对两件事：\n"
+    "A. 输入是否符合题面格式与数据范围——按题面把每个数字数一遍："
+    "该有 n 个数的那一行是不是真有 n 个？该有 m 行的是不是真有 m 行？数值是否越界？\n"
+    "B. 用标准程序跑这组输入，输出是否真的等于期望输出（条数也要一致）。\n"
+    "处理规则：\n"
+    "1) 输入格式不对（数少了/多了、行数不对）→ 补齐或改正成合法输入，再重算期望输出；\n"
+    "2) 期望输出算错 → 改正；\n"
+    "3) 题意不清、答案不唯一、无法判定 → 直接删掉这一组；\n"
+    "4) 保持原有顺序和 why 字段，可以补充遗漏的边界组，总数不超过 {count} 组。\n"
     "只返回 JSON：{\"tests\":[{\"input\":\"...\",\"output\":\"...\",\"why\":\"...\"}]}，不要代码围栏。"
 )
 
+
+CODE_PRACTICE_SYSTEM = (
+    "你是 C++ 程序设计课的出题老师。按学生给的知识点和难度，出一道能在线判题里"
+    "直接测试的题目（标准输入 / 标准输出）。\n"
+    "硬性要求：\n"
+    "1) 只能是一次读入若干数据、写出结果的题，不要出交互题，不要要求图形库或多文件；\n"
+    "2) 题面必须写清楚：题目描述、输入格式、输出格式、数据范围；\n"
+    "3) 必须给 1 组样例，样例输出必须真的等于正确程序的输出（你自己先算一遍）；\n"
+    "4) 难度与知识点匹配，不要出超大规模数据；题面用中文，描述不超过 320 字。\n"
+    "只返回 JSON：{\"title\":\"题名（≤ 16 字）\",\"description\":\"题目描述 + 输入格式 + "
+    "输出格式 + 数据范围\",\"input_sample\":\"\",\"output_sample\":\"\",\"hint\":\""
+    "一句提示（可选）\"}，不要代码围栏。"
+)
 
 def _ai_json(config, system, payload, limit=16000):
     messages = [
@@ -1312,7 +1352,12 @@ def api_code_generate():
     db_ = db()
     config = core.get_ai_config(db_)
     core.check_ai_quota(db_, uid(), "solve")
-    parsed = _ai_json(config, CODE_GENERATE_SYSTEM.replace("{count}", str(count)), text)
+    try:
+        parsed = _ai_json(config, CODE_GENERATE_SYSTEM.replace("{count}", str(count)), text)
+    except Exception:
+        # 输出太长被截断或解析失败时，退一步只要少量测试点再试一次
+        count = max(4, min(6, count))
+        parsed = _ai_json(config, CODE_GENERATE_SYSTEM.replace("{count}", str(count)), text)
     picked = _clean_tests(parsed, count)
     if not picked:
         fail("AI 没给出可用的测试数据，换个说法再试一次")
@@ -1336,6 +1381,38 @@ def api_code_generate():
                 checked = fixed
     return jsonify(ok=True, tests=checked, mode="ai", verified=bool(checked is not picked),
                    note="AI 出了 %d 组测试点并复核了期望输出" % len(checked))
+
+
+@bp.post("/api/v3/code/practice")
+def api_code_practice():
+    """按知识点现场出一道题，交给同一个 IDE 判分。"""
+    data = body()
+    topic = str(data.get("topic") or "").strip()[:120]
+    level = str(data.get("level") or "基础").strip()[:20]
+    if len(topic) < 2:
+        fail("先写一个想练的知识点，比如「二分查找」「前缀和」")
+    db_ = db()
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "solve")
+    parsed = _ai_json(config, CODE_PRACTICE_SYSTEM.replace("{level}", level),
+                      "知识点：" + topic + "\n难度：" + level)
+    desc = str(parsed.get("description") or "").strip()[:4000]
+    if not desc:
+        fail("AI 没给出题目，换个知识点再试一次")
+    title = str(parsed.get("title") or topic).strip()[:40]
+    s_in = str(parsed.get("input_sample") or "").strip("\n")[:600]
+    s_out = str(parsed.get("output_sample") or "").strip("\n")[:600]
+    hint = str(parsed.get("hint") or "").strip()[:200]
+    text = desc
+    if s_in or s_out:
+        if s_in:
+            text += "\n\n样例输入\n" + s_in
+        if s_out:
+            text += "\n\n样例输出\n" + s_out
+    if hint:
+        text += "\n\n提示：" + hint
+    return jsonify(ok=True, title=title, requirement=text, topic=topic, level=level,
+                   samples=[{"input": s_in, "output": s_out}] if (s_in or s_out) else [])
 
 
 @bp.get("/api/v3/code/health")

@@ -3,6 +3,7 @@
   var entryId = document.body.dataset.entryId || "";
   var currentEntry = entryId;
   var bankItems = [];
+  var suppressAuto = false;
   var tests = [];
   var generating = false;
   var autoTimer = null;
@@ -258,8 +259,20 @@
           body: { requirement: requirement, entry_id: currentEntry, count: TEST_CAP }
         });
       } catch (err) {
+        var msg = String((err && err.message) || "");
+        if (!opts._retried && /太快|限流|频率/.test(msg) && !/调用过多|额度/.test(msg)) {
+          progress.step("AI 刚才被限流，3 秒后自动重试…");
+          progress.fail("AI 刚才被限流，3 秒后自动重试…");
+          generating = false;
+          await new Promise(function (resolve) { setTimeout(resolve, 3600); });
+          var retry = {};
+          Object.keys(opts || {}).forEach(function (k) { retry[k] = opts[k]; });
+          retry._retried = true;
+          return generateTests(retry);
+        }
         if (!found.length) throw err;
-        progress.fail("AI 暂时不可用，只用题面里的 " + found.length + " 组样例");
+        progress.fail(/调用过多|额度/.test(msg) ? msg
+          : "AI 暂时不可用，只用题面里的 " + found.length + " 组样例");
         setTests(found);
         return;
       }
@@ -295,6 +308,7 @@
   }
 
   function queueAutoGenerate() {
+    if (suppressAuto) return;
     if (autoTimer) clearTimeout(autoTimer);
     var requirement = $("code-requirement").value.trim();
     if (requirement.length < 12) return;
@@ -322,6 +336,60 @@
     var max = Math.round(window.innerHeight * 0.46);
     box.style.height = Math.min(Math.max(need, 132), max) + "px";
     box.style.overflowY = need > max ? "auto" : "hidden";
+  }
+
+  /* ---------------- AI 出题练习 ---------------- */
+  function openPractice() {
+    $("practice-modal").hidden = false;
+    $("practice-status").textContent = "";
+    $("practice-topic").focus();
+  }
+
+  function closePractice() {
+    $("practice-modal").hidden = true;
+  }
+
+  async function runPractice() {
+    var topic = ($("practice-topic").value || "").trim();
+    if (topic.length < 2) {
+      V3.toast("先写一个想练的知识点", "error");
+      $("practice-topic").focus();
+      return;
+    }
+    var level = $("practice-level").value || "基础";
+    var go = $("practice-go");
+    var tip = $("practice-status");
+    go.disabled = true;
+    tip.textContent = "AI 正在出题（" + topic + "）…";
+    try {
+      var res = await V3.api("/api/v3/code/practice", {
+        method: "POST",
+        body: { topic: topic, level: level }
+      });
+      currentEntry = null;
+      $("crumb-title").textContent = res.title || topic;
+      $("prob-title").textContent = res.title || topic;
+      $("save-hint").textContent = "AI 出题 · " + topic;
+      suppressAuto = true;
+      setTests([]);
+      setRequirement(res.requirement || "");
+      suppressAuto = false;
+      autoSizeProblem();
+      var box = $("code-source");
+      if (!box.value.trim() || box.value.indexOf("在这里写代码") >= 0) {
+        box.value = "#include <iostream>\nusing namespace std;\n\nint main() {\n    \n    return 0;\n}\n";
+        refreshGutter();
+      }
+      closePractice();
+      V3.toast("题目已生成，正在准备测试点");
+      status("题目已生成", topic);
+      setTimeout(function () { generateTests({ silent: true }); }, 3600);
+    } catch (err) {
+      tip.textContent = err.message || "出题失败";
+      V3.fail(err);
+    } finally {
+      go.disabled = false;
+    }
   }
 
   function openBank() {
@@ -612,6 +680,21 @@
     copyText(source.value, "代码已复制");
   });
 
+  $("pick-practice").addEventListener("click", openPractice);
+  $("practice-close").addEventListener("click", closePractice);
+  $("practice-modal").addEventListener("click", function (event) {
+    if (event.target === $("practice-modal")) closePractice();
+  });
+  $("practice-go").addEventListener("click", runPractice);
+  $("practice-topic").addEventListener("keydown", function (event) {
+    if (event.key === "Enter") { event.preventDefault(); runPractice(); }
+  });
+  $("practice-chips").addEventListener("click", function (event) {
+    var b = event.target.closest("[data-topic]");
+    if (!b) return;
+    $("practice-topic").value = b.dataset.topic;
+    $("practice-topic").focus();
+  });
   $("pick-bank").addEventListener("click", openBank);
   $("bank-close").addEventListener("click", closeBank);
   $("bank-modal").addEventListener("click", function (event) {
