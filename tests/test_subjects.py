@@ -68,7 +68,7 @@ class SubjectTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/subjects',json={'name':'english II'},headers=self.headers).status_code,409)
         self.assertEqual(self.client.put('/api/subjects/'+sid,json={'name':'线性代数'},headers=self.headers).status_code,409)
         for i in range(47):
-            self.db.execute('INSERT INTO subjects VALUES(?,?,?,?)',(self.uid,'s_'+uuid.uuid4().hex,'科目'+str(i),app.now_utc()))
+            self.db.execute('INSERT INTO subjects (user_id,id,name,created_at) VALUES(?,?,?,?)',(self.uid,'s_'+uuid.uuid4().hex,'科目'+str(i),app.now_utc()))
         self.db.commit()
         self.assertEqual(self.client.post('/api/subjects',json={'name':'超过限制'},headers=self.headers).status_code,400)
         self.assertEqual(self.client.put('/api/subjects/'+sid,json={'name':'英语'},headers=self.headers).status_code,200)
