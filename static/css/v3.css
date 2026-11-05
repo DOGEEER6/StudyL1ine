@@ -1037,3 +1037,49 @@ html {
 .practice-chips .ide-mini { background: #f1f6ff; border-color: #dbe6f8; color: #2b4a7a; }
 .practice-chips .ide-mini:hover { background: #e6efff; }
 .practice-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+
+/* 「AI 出题」主按钮：比旁边的幽灵按钮更抢眼 */
+.ide-btn.practice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #3b82f6 0%, #5b6cf5 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(59, 130, 246, .26);
+  transition: transform .14s ease, box-shadow .14s ease, filter .14s ease;
+}
+
+.ide-btn.practice-btn:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+  box-shadow: 0 9px 20px rgba(59, 130, 246, .32);
+}
+
+.ide-btn.practice-btn:active { transform: translateY(0); }
+
+.ide-btn.practice-btn .practice-spark {
+  font-size: 12px;
+  line-height: 1;
+  opacity: .95;
+}
+
+.beta-tag {
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .88);
+  color: #6b7280;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .ide-btn.practice-btn { padding: 7px 11px; }
+  .beta-tag { font-size: 9px; padding: 1px 4px; }
+}
