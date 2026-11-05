@@ -212,3 +212,52 @@ body.app-page .site-announcement-inner { background: #edf4ff; color: var(--ink-2
 @media (prefers-reduced-transparency: reduce) {
   body.app-page .topbar, body.app-page .mobile-tabbar { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* 公告横幅：字号与页面正文匹配（minimal.css 里是 9px，太小） */
+body.app-page .site-announcement {
+  border-bottom: 1px solid rgba(37, 99, 235, 0.14);
+  background: #eaf3fe;
+}
+
+body.app-page .site-announcement-inner {
+  background: transparent;
+}
+body.app-page .site-announcement-inner {
+  gap: 12px;
+  min-height: 42px;
+  padding: 10px 0;
+}
+
+body.app-page .site-announcement p {
+  color: #172b45;
+  font-size: 13.5px;
+  line-height: 1.7;
+  letter-spacing: 0.01em;
+}
+
+body.app-page .announcement-mark {
+  padding: 4px 8px;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 6px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+
+body.app-page .announcement-close {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  body.app-page .site-announcement p {
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  body.app-page .announcement-mark {
+    font-size: 10px;
+  }
+}
