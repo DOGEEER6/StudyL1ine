@@ -179,7 +179,20 @@ body.app-page .site-announcement-inner { background: #edf4ff; color: var(--ink-2
   /* Secondary destinations remain reachable without taking a second nav row. */
   body.app-page .topbar-nav { width: auto; order: 0; flex: 0 0 auto; overflow: visible; }
   body.app-page .topbar-nav > a { display: none; }
-  body.app-page .topbar-nav .nav-more > summary { min-height: 40px; padding-inline: 12px; }
+  body.app-page .topbar-nav .nav-more > summary {
+    min-height: 44px; min-width: 88px; padding-inline: 15px; gap: 10px;
+    justify-content: center; border: 1px solid #c8dcf8; border-radius: 14px;
+    background: #e8f1ff; color: #1769d2; font-size: 14px; font-weight: 650;
+    box-shadow: 0 2px 6px rgba(23,105,210,.06);
+  }
+  body.app-page .topbar-nav .nav-more > summary::after {
+    content: ""; width: 7px; height: 7px; margin-top: -3px;
+    border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor;
+    opacity: 1; transform: rotate(45deg); transition: transform .15s ease;
+  }
+  body.app-page .topbar-nav .nav-more > summary:hover { background: #dceaff; }
+  body.app-page .topbar-nav .nav-more[open] > summary { background: #1769d2; border-color: #1769d2; color: #fff; }
+  body.app-page .topbar-nav .nav-more[open] > summary::after { margin-top: 3px; transform: rotate(225deg); }
   body.app-page .nav-more-menu { left: auto; right: 0; transform: none; }
   body.app-page .topbar-actions { display: none; }
   body.app-page .topbar .brand-mark { width: 34px; height: 34px; border-radius: 12px; }
