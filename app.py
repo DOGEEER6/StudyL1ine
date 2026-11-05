@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-math-notes · 工科数学分析 / 线性代数 错题与难题时间线
+学线 LearnL1ne · 多学科错题、复习与考试计划
 A small, self-hosted Flask application.
 """
 
@@ -1722,7 +1722,7 @@ def maybe_start_ai(entry_id: str, force: bool = False, quota_checked: bool = Fal
 
 def chat_completion(row: sqlite3.Row, config: dict, history: list[dict], question: str) -> str:
     system = (
-        "你是数学错题本里的 AI 助教，正在和学生讨论下面这道题。"
+        "你是学线里的 AI 助教，正在和学生讨论下面这道题。"
         "回答要简洁、准确，公式使用 LaTeX（行内 $...$，独立 $$...$$）。"
         "不要编造题目条件；如果学生问的内容和题目无关，也可以正常回答。\n\n"
         + entry_context(row, 8000)

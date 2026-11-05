@@ -1,4 +1,4 @@
-"""第二遍 v3: 考试复习计划、异步 PK、我来讲解、拍照批阅、代码题。
+"""学线 LearnL1ne v3: 考试复习计划、异步 PK、我来讲解、拍照批阅、代码题。
 
 Every route lives under /api/v3 and is registered at the very end of app.py so
 the core module object is fully initialised when we capture it here.

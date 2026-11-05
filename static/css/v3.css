@@ -123,3 +123,5 @@ body.v3-page {
   .v3-main { padding: 16px 12px 70px; }
   .v3-nav { display: none; }
 }
+
+.v3-brand em { font-style: normal; font-weight: 500; font-size: 12px; opacity: .7; letter-spacing: .02em; }

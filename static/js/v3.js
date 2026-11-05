@@ -1,4 +1,4 @@
-/* Shared helpers for the 第二遍 v3 pages (exam / duel / code / explain). */
+/* Shared helpers for the 学线 v3 pages (exam / duel / code / explain). */
 (function () {
   const V3 = (window.V3 = { csrf: "", user: null, subjects: [], kinds: {}, suggestions: {} });
 
