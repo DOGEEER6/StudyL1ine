@@ -391,6 +391,7 @@ app = Flask(__name__)
 app.config.update(
     SECRET_KEY=load_secret(),
     MAX_CONTENT_LENGTH=24 * 1024 * 1024,
+    SESSION_COOKIE_NAME=os.environ.get("MATH_SESSION_COOKIE_NAME", "session"),
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("MATH_COOKIE_SECURE", "1") == "1",
