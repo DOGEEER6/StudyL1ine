@@ -2074,6 +2074,24 @@ dialog::backdrop {
   color: var(--paper);
 }
 
+/* 「＋ 新科目」快捷芯片：虚线边，一眼看出是新建而不是选择 */
+.choice-chip.chip-add {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.choice-chip.chip-add:hover {
+  border-color: var(--analysis);
+  color: var(--analysis);
+  background: var(--card-soft);
+}
+
+.review-grade-box {
+  margin-top: 10px;
+}
+
 .choice-chip.subject-analysis.active {
   border-color: var(--analysis);
   background: var(--analysis);

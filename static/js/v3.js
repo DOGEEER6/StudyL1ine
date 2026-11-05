@@ -82,4 +82,18 @@
     const d = new Date(day + "T00:00:00");
     return isNaN(d.getTime()) ? "" : names[d.getDay()];
   };
+
+  // 顶栏高亮当前页（原先写成内联脚本，被 CSP script-src 'self' 拦截）。
+  function markActiveNav() {
+    const here = (location.pathname.replace(/\/+$/, "") || "/");
+    document.querySelectorAll(".v3-nav a[data-page]").forEach(function (a) {
+      if (a.getAttribute("href") === here) a.classList.add("active");
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", markActiveNav);
+  } else {
+    markActiveNav();
+  }
 })();

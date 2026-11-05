@@ -2439,6 +2439,10 @@
     $("#subject-chips").addEventListener("click", (event) => {
       const button = event.target.closest(".choice-chip");
       if (!button || !state.editor) return;
+      if (button.dataset.addSubject) {
+        createSubjectQuick(button.dataset.addSubject, button.dataset.addKind || "other", button);
+        return;
+      }
       state.editor.subject = button.dataset.value;
       setChips("subject-chips", state.editor.subject);
       markDirty();
@@ -2503,45 +2507,7 @@
       });
     });
 
-    $("#ocr-problem-btn").addEventListener("click", async () => {
-      if (!state.editor) return;
-      const images = state.editor.attachments.problem.filter((item) => !item.loading);
-      if (!images.length) {
-        toast("先在「原题」下方添加题目图片", "info");
-        return;
-      }
-      const button = $("#ocr-problem-btn");
-      const label = button.querySelector("span");
-      button.disabled = true;
-      label.textContent = "识别中…";
-      try {
-        const payload = images.map((item) => ({
-          data: item.data || undefined,
-          url: item.url || undefined,
-          name: item.name || "题目图片",
-          kind: "problem",
-        }));
-        const data = await api("/api/ai/ocr", {
-          method: "POST",
-          body: { attachments: payload },
-        });
-        state.editor.ocrText = data.text || "";
-        const field = $("#f-problem");
-        if (!field.value.trim()) {
-          field.value = state.editor.ocrText;
-          toast("图片文字已识别并填入题目", "success");
-        } else {
-          toast("文字已识别并保存为 OCR 结果；题干已有内容，未覆盖", "success", 4200);
-        }
-        if (state.editor.previews.problem) showPreview("problem", false);
-        markDirty();
-      } catch (err) {
-        handleError(err);
-      } finally {
-        button.disabled = false;
-      label.textContent = "立即识别图片";
-      }
-    });
+    $("#ocr-problem-btn").addEventListener("click", () => runProblemOcr());
 
     // Dropzones
     for (const kind of ["problem", "solution"]) {
@@ -2784,20 +2750,75 @@
     hideDraftNote();
   }
 
-  function addFiles(fileList, kind) {
+  // 录题时把图片里的题目交给 AI 转成可编辑文字；按科目类型换提示词
+  // （数学保留 LaTeX，程序设计保留代码缩进，英语保留大小写）。
+  async function runProblemOcr(options = {}) {
     if (!state.editor) return;
+    const images = state.editor.attachments.problem.filter(
+      (item) => !item.loading && (item.data || item.url)
+    );
+    if (!images.length) {
+      if (!options.auto) toast("先在「原题」下方添加题目图片", "info");
+      return;
+    }
+    const button = $("#ocr-problem-btn");
+    const label = button ? button.querySelector("span") : null;
+    if (button) button.disabled = true;
+    if (label) label.textContent = "识别中…";
+    try {
+      const payload = images.map((item) => ({
+        data: item.data || undefined,
+        url: item.url || undefined,
+        name: item.name || "题目图片",
+        kind: "problem",
+      }));
+      const data = await api("/api/ai/ocr", {
+        method: "POST",
+        body: { attachments: payload, kind: editorSubjectKind() },
+      });
+      if (!state.editor) return;
+      state.editor.ocrText = data.text || "";
+      const field = $("#f-problem");
+      if (field && !field.value.trim()) {
+        field.value = state.editor.ocrText;
+        toast("图片文字已识别并填入题目", "success");
+      } else {
+        toast("文字已识别并保存为 OCR 结果；题干已有内容，未覆盖", "success", 4200);
+      }
+      if (state.editor.previews.problem) showPreview("problem", false);
+      markDirty();
+    } catch (err) {
+      handleError(err);
+    } finally {
+      if (button) button.disabled = false;
+      if (label) label.textContent = "立即识别图片";
+    }
+  }
+
+  function editorSubjectKind() {
+    const subject = state.editor ? state.editor.subject : "";
+    try {
+      return subjectKind(subject);
+    } catch (err) {
+      return "math";
+    }
+  }
+
+  function addFiles(fileList, kind) {
+    if (!state.editor) return Promise.resolve();
     const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
     if (!files.length) {
       toast("请选择图片文件", "error");
-      return;
+      return Promise.resolve();
     }
     const editor = state.editor;
     const total = state.editor.attachments.problem.length + state.editor.attachments.solution.length;
     const room = MAX_ATTACHMENTS - total;
     if (room <= 0) {
       toast(`每道题最多 ${MAX_ATTACHMENTS} 张图片`, "error");
-      return;
+      return Promise.resolve();
     }
+    const tasks = [];
     for (const file of files.slice(0, room)) {
       const placeholder = {
         id: `new-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -2809,26 +2830,35 @@
       };
       state.editor.attachments[kind].push(placeholder);
       renderAttachments(kind);
-      prepareImage(file)
-        .then((prepared) => {
-          if (state.editor !== editor || !editor.attachments[kind].includes(placeholder)) {
-            if (prepared.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prepared.previewUrl);
-            return;
-          }
-          Object.assign(placeholder, prepared, { loading: false, kind });
-          renderAttachments(kind);
-          markDirty();
-        })
-        .catch((err) => {
-          if (state.editor !== editor) return;
-          const list = state.editor.attachments[kind];
-          const index = list.indexOf(placeholder);
-          if (index >= 0) list.splice(index, 1);
-          renderAttachments(kind);
-          toast(err.message || "图片处理失败", "error");
-        });
+      tasks.push(
+        prepareImage(file)
+          .then((prepared) => {
+            if (state.editor !== editor || !editor.attachments[kind].includes(placeholder)) {
+              if (prepared.previewUrl?.startsWith("blob:")) URL.revokeObjectURL(prepared.previewUrl);
+              return;
+            }
+            Object.assign(placeholder, prepared, { loading: false, kind });
+            renderAttachments(kind);
+            markDirty();
+          })
+          .catch((err) => {
+            if (state.editor !== editor) return;
+            const list = state.editor.attachments[kind];
+            const index = list.indexOf(placeholder);
+            if (index >= 0) list.splice(index, 1);
+            renderAttachments(kind);
+            toast(err.message || "图片处理失败", "error");
+          })
+      );
     }
     if (files.length > room) toast(`只添加了前 ${room} 张，已达上限`, "info");
+    return Promise.all(tasks).then(() => {
+      const field = $("#f-problem");
+      if (kind === "problem" && state.editor === editor && field && !field.value.trim()) {
+        return runProblemOcr({ auto: true });
+      }
+      return null;
+    });
   }
 
   async function prepareImage(file, options = {}) {
@@ -3309,24 +3339,36 @@
 
     if (!review.revealed) {
       const zone = el("div", { class: "review-answer-zone" });
-      zone.appendChild(
-        el(
-          "button",
-          {
-            class: "btn btn-primary",
-            type: "button",
-            onclick: () => revealReview(),
-          },
-          iconEl("eye"),
-          el("span", { text: "查看答案与解析" })
-        )
-      );
+      const gradeBox = el("div", { class: "review-grade-box" });
+      const gradeAnchor = el("div");
+      gradeBox.appendChild(gradeAnchor);
+      const uploadBtn = el("button", { class: "btn btn-primary", type: "button" }, "📷 先上传我的解答，AI 批阅");
+      uploadBtn.addEventListener("click", async () => {
+        uploadBtn.disabled = true;
+        try {
+          await gradeEntryPhoto(entry, gradeAnchor);
+        } catch (err) {
+          toast(err.message || "批阅失败", "error");
+        } finally {
+          uploadBtn.disabled = false;
+        }
+      });
+      zone.appendChild(uploadBtn);
       zone.appendChild(
         el("p", {
           class: "settings-note",
-          text: "先在草稿纸上写出思路，再看答案。评分才会更准确。",
           style: { marginTop: "8px" },
+          text: "先把纸上的解题过程拍下来交给 AI，它会指出错在第几步；看完批阅再看标准解析，对比才有意义。",
         })
+      );
+      zone.appendChild(gradeBox);
+      zone.appendChild(
+        el(
+          "button",
+          { class: "btn btn-ghost btn-sm", type: "button", style: { marginTop: "10px" }, onclick: () => revealReview() },
+          iconEl("eye"),
+          el("span", { text: "不批阅，直接看答案与解析" })
+        )
       );
       body.appendChild(zone);
     } else {
@@ -3427,16 +3469,30 @@
 
     const foot = el("div", { class: "review-foot" });
     foot.appendChild(
-      el("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: () => closeDialog($("#review-dialog")) }, "稍后")
+      el(
+        "button",
+        {
+          class: "btn btn-ghost btn-sm",
+          type: "button",
+          disabled: review.index <= 0,
+          onclick: () => moveReview(-1),
+        },
+        "← 上一道"
+      )
     );
-    foot.appendChild(el("span", { class: "spacer" }));
     foot.appendChild(
       el(
         "button",
-        { class: "btn btn-ghost btn-sm", type: "button", onclick: () => skipReview() },
-        "跳过"
+        {
+          class: "btn btn-ghost btn-sm",
+          type: "button",
+          disabled: review.index >= review.queue.length - 1,
+          onclick: () => moveReview(1),
+        },
+        "下一道 →"
       )
     );
+    foot.appendChild(el("span", { class: "spacer" }));
     if (review.revealed) {
       const submit = el(
         "button",
@@ -3450,6 +3506,10 @@
         el("span", { text: "提交并继续" })
       );
       foot.appendChild(submit);
+    } else {
+      foot.appendChild(
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", onclick: () => closeDialog($("#review-dialog")) }, "稍后再复习")
+      );
     }
     root.appendChild(foot);
   }
@@ -3464,13 +3524,16 @@
     }
   }
 
-  function skipReview() {
-    if (!state.review) return;
-    state.review.index += 1;
-    state.review.revealed = false;
-    state.review.result = null;
-    state.review.note = "";
-    state.review.entry = state.review.queue[state.review.index] || null;
+  function moveReview(delta) {
+    const review = state.review;
+    if (!review || !review.queue) return;
+    const next = review.index + delta;
+    if (next < 0 || next >= review.queue.length) return;
+    review.index = next;
+    review.revealed = false;
+    review.result = null;
+    review.note = "";
+    review.entry = review.queue[next] || null;
     renderReview();
   }
 
@@ -3687,6 +3750,20 @@
       stats.append(el("button",{type:"button",class:"stat-cell",dataset:{stat:s.id}},
         el("strong",{text:state.stats?.by_subject?.[s.id] || 0}),el("span",{text:s.name})));
     });
+    const owned = new Set(subjects.map(s => s.kind || "math"));
+    const suggestions = state.suggestions || {};
+    ["cpp", "english"].forEach(kind => {
+      if (owned.has(kind)) return;
+      const name = (suggestions[kind] || [])[0];
+      if (!name) return;
+      chips.append(el("button",{
+        type:"button",
+        class:"choice-chip chip-add",
+        dataset:{addSubject:name, addKind:kind},
+        title:`新建科目「${name}」`,
+        text:`＋ ${name}`,
+      }));
+    });
     if (state.editor) setChips("subject-chips",state.editor.subject);
     applyFiltersToUI();
     renderSubjectManager();
@@ -3721,6 +3798,23 @@
           edit));
       }
     });
+  }
+
+  async function createSubjectQuick(name, kind, button) {
+    if (button) button.disabled = true;
+    try {
+      const data = await api("/api/subjects", { method: "POST", body: { name, kind } });
+      if (Array.isArray(data.subjects) && data.subjects.length) renderSubjects(data.subjects);
+      if (state.editor && data.subject) {
+        state.editor.subject = data.subject.id;
+        setChips("subject-chips", state.editor.subject);
+        markDirty();
+      }
+      toast(`已添加科目「${name}」`, "success", 2200);
+    } catch (err) {
+      if (button) button.disabled = false;
+      handleError(err);
+    }
   }
 
   async function saveSubject(id, name, form, kind) {
@@ -4240,6 +4334,8 @@
       }
       state.csrf = me.csrf;
       applyUser(me.user);
+      state.kinds = me.kinds || {};
+      state.suggestions = me.suggestions || {};
       renderSubjects(me.subjects);
     } catch (err) {
       return;

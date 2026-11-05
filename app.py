@@ -1500,7 +1500,41 @@ def image_content(parts: list[str], data_urls: list[str]) -> str | list[dict]:
     return content
 
 
-def do_ocr(row: sqlite3.Row, config: dict, images: list[dict] | None = None) -> str:
+OCR_PROMPTS = {
+    "math": (
+        "你是一个数学题目 OCR 工具。请识别图片中的工科数学分析或线性代数题目，"
+        "保留公式的 LaTeX 写法（行内 $...$，独立公式 $$...$$）。"
+        "只输出识别到的题目文字，不要解题，不要添加解释。"
+    ),
+    "cpp": (
+        "你是一个程序设计题目的 OCR 工具。请完整识别图片里的内容：题面描述、输入格式、输出格式、"
+        "样例输入输出，以及图中出现的代码。代码必须原样保留缩进与换行，用 ```cpp 代码块包裹；"
+        "只输出识别到的原文，不要解题，不要补充解释，不要翻译。"
+    ),
+    "english": (
+        "你是一个英语材料 OCR 工具。请识别图片中的英文原文（题目、文章、选项），"
+        "保留原始大小写、标点与换行；不要翻译，不要解题，不要添加解释。"
+    ),
+    "other": (
+        "你是一个题目 OCR 工具。请识别图片中的文字，尽量保留原文结构与换行；"
+        "不要解题，不要添加解释。"
+    ),
+}
+
+OCR_HINTS = {
+    "math": "请识别这张图片里的数学题目，输出可直接编辑的文字。",
+    "cpp": "请识别这张图片里的程序设计题目和代码，输出可直接编辑的文字。",
+    "english": "请识别这张图片里的英文材料，输出可直接编辑的文字。",
+    "other": "请识别这张图片里的题目，输出可直接编辑的文字。",
+}
+
+
+def do_ocr(
+    row: sqlite3.Row | None,
+    config: dict,
+    images: list[dict] | None = None,
+    kind: str = "math",
+) -> str:
     attachments = images
     if attachments is None:
         attachments = [
@@ -1511,20 +1545,12 @@ def do_ocr(row: sqlite3.Row, config: dict, images: list[dict] | None = None) -> 
     urls = [url for item in attachments if (url := attachment_data_url(item))]
     if not urls:
         raise AIError("没有可识别的题目图片")
+    kind = kind if kind in OCR_PROMPTS else "math"
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "你是一个数学题目 OCR 工具。请识别图片中的工科数学分析或线性代数题目，"
-                "保留公式的 LaTeX 写法（行内 $...$，独立公式 $$...$$）。"
-                "只输出识别到的题目文字，不要解题，不要添加解释。"
-            ),
-        },
+        {"role": "system", "content": OCR_PROMPTS[kind]},
         {
             "role": "user",
-            "content": image_content(
-                ["请识别这张图片里的数学题目，输出可直接编辑的文字。"], urls
-            ),
+            "content": image_content([OCR_HINTS[kind]], urls),
         },
     ]
     text, _model, _usage = call_ai(
@@ -2526,7 +2552,11 @@ def api_ai_ocr_generic():
     config = require_ai(db)
     check_ai_quota(db, user["id"], "ocr")
     try:
-        text = do_ocr(None, config, images=attachments)  # type: ignore[arg-type]
+        requested = normalize_kind(data.get("kind"), default="math")
+    except ValueError:
+        requested = "math"
+    try:
+        text = do_ocr(None, config, images=attachments, kind=requested)
     except AIError as exc:
         raise ApiError(str(exc), 502)
     return jsonify(ok=True, text=text)
@@ -2573,7 +2603,11 @@ def api_entry_ai_ocr(entry_id: str):
             (now_utc(), entry_id, user["id"]),
         )
         db.commit()
-        text = do_ocr(row, config)
+        try:
+            kind = subject_kind(db, user["id"], row["subject"])
+        except Exception:
+            kind = "math"
+        text = do_ocr(row, config, kind=kind)
     except AIError as exc:
         db.execute(
             "UPDATE entries SET ocr_status = 'error', ocr_error = ?, ocr_updated_at = ? "

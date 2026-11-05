@@ -820,13 +820,18 @@ def api_code_run():
     tests = data.get("tests") or []
     if not isinstance(tests, list):
         fail("测试数据格式不正确")
+    tests = [t for t in tests if str((t or {}).get("input") or "").strip()
+             or str((t or {}).get("output") or "").strip()]
+    preview = not tests
+    if preview:
+        tests = [{"input": "", "output": ""}]
     try:
         result = judge.judge_cpp(source, tests)
     except judge.JudgeUnavailable as exc:
         fail(str(exc), 503)
     except ValueError as exc:
         fail(str(exc))
-    return jsonify(ok=True, **result)
+    return jsonify(ok=True, preview=preview, **result)
 
 
 @bp.post("/api/v3/code/save")
@@ -910,7 +915,8 @@ def _page(template, **extra):
     user = core.current_user()
     if not user:
         return redirect("/login")
-    return render_template(template, version=core.APP_VERSION, username=user["username"], **extra)
+    return render_template(template, version=core.APP_VERSION, asset_version=core.APP_VERSION,
+                           username=user["username"], **extra)
 
 
 @bp.get("/exam")
