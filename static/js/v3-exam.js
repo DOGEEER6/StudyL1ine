@@ -71,6 +71,7 @@
         }).join('');
       }
       detail.innerHTML = html;
+      V3.math(detail);
       var btn = document.getElementById('build-plan');
       if (btn) btn.addEventListener('click', function () { buildPlan(id); });
       detail.querySelectorAll('[data-done]').forEach(function (b) {

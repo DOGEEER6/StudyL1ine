@@ -1,0 +1,45 @@
+{# 全站统一顶栏。调用前可设置：mode='app'（首页，带练习卷/侧栏按钮）、mode='page'（其余页面）、username、is_admin。 #}
+<header class="topbar" data-admin="{{ 1 if is_admin else 0 }}">
+  <div class="topbar-left">
+    {% if mode == 'app' %}
+    <button class="icon-btn mobile-only" id="sidebar-toggle" type="button" aria-label="打开筛选">
+      <svg class="icon"><use href="#i-sliders"></use></svg>
+    </button>
+    {% endif %}
+    <a class="brand" href="/" aria-label="学线 LearnL1ne 首页">
+      <span class="brand-mark">∫</span>
+      <span class="brand-text"><strong>学线</strong><small>LearnL1ne · 错一题，讲一遍</small></span>
+    </a>
+  </div>
+  <nav class="topbar-nav" aria-label="主导航">
+    <a class="nav-link" href="/">错题本</a>
+    <a class="nav-link" href="/?action=review" id="nav-review">复习</a>
+    <a class="nav-link" href="/learning">学习状况</a>
+    <details class="nav-more">
+      <summary class="nav-link">进阶</summary>
+      <div class="nav-more-menu">
+        <a href="/exam">考试计划</a>
+        <a href="/duel">PK 对战</a>
+        <a href="/code">代码题</a>
+      </div>
+    </details>
+    <a class="nav-link" href="/admin" data-admin-only>管理</a>
+  </nav>
+  <div class="topbar-actions">
+    <button class="user-chip" id="user-chip" type="button" data-user="{{ username|default('', true) }}" title="账号设置">
+      <span class="user-avatar" id="user-avatar">{{ (username|default('', true))[:1]|upper }}</span>
+      <span id="user-name">{{ username|default('…', true) }}</span>
+    </button>
+    {% if mode == 'app' %}
+    <button class="btn btn-ghost btn-sm hide-sm" id="header-export" type="button">
+      <svg class="icon"><use href="#i-printer"></use></svg><span>练习卷</span>
+    </button>
+    {% endif %}
+    <a class="btn btn-primary btn-sm" id="header-add" href="/?action=add">
+      <svg class="icon"><use href="#i-plus"></use></svg><span>新建题目</span>
+    </a>
+    <a class="icon-btn" id="open-settings" href="/?action=settings" title="设置" aria-label="设置">
+      <svg class="icon"><use href="#i-settings"></use></svg>
+    </a>
+  </div>
+</header>

@@ -15,44 +15,13 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/learning.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/timeline.css') }}?v={{ asset_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/subjects.css') }}?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}?v={{ asset_version }}">
 </head>
 <body class="app-page minimal-page">
   {% include 'icons.html' %}
 
-  <header class="topbar">
-    <div class="topbar-left">
-      <button class="icon-btn mobile-only" id="sidebar-toggle" type="button" aria-label="打开筛选">
-        <svg class="icon"><use href="#i-sliders"></use></svg>
-      </button>
-      <a class="brand" href="/" aria-label="学线 LearnL1ne 首页">
-        <span class="brand-mark">∫</span>
-        <span class="brand-text"><strong>学线</strong><small>LearnL1ne · 错一题，讲一遍</small></span>
-      </a>
-    </div>
-    <nav class="topbar-nav" aria-label="主导航">
-      <a class="nav-link active" href="/">错题本</a>
-      <button class="nav-link" id="nav-review" type="button">复习</button>
-      <a class="nav-link" href="/learning">学习状况</a>
-      <a class="nav-link" href="/exam">考试</a>
-      <a class="nav-link" href="/duel">PK</a>
-      <a class="nav-link" href="/admin" data-admin-only>管理</a>
-    </nav>
-    <div class="topbar-actions">
-      <button class="user-chip" id="user-chip" type="button" title="账号设置">
-        <span class="user-avatar" id="user-avatar">M</span>
-        <span id="user-name">…</span>
-      </button>
-      <button class="btn btn-ghost btn-sm hide-sm" id="header-export" type="button">
-        <svg class="icon"><use href="#i-printer"></use></svg><span>练习卷</span>
-      </button>
-      <button class="btn btn-primary btn-sm" id="header-add" type="button">
-        <svg class="icon"><use href="#i-plus"></use></svg><span>新建题目</span>
-      </button>
-      <button class="icon-btn" id="open-settings" type="button" aria-label="设置" title="设置">
-        <svg class="icon"><use href="#i-settings"></use></svg>
-      </button>
-    </div>
-  </header>
+  {% set mode = 'app' %}
+  {% include '_topbar.html' %}
 
   <div class="site-announcement" id="site-announcement" hidden>
     <div class="site-announcement-inner">
@@ -124,6 +93,17 @@
               <span class="sf-dot dot-linear"></span><span>线性代数</span><em id="sf-linear">0</em>
             </button>
           </div>
+        </section>
+
+        <section class="side-section">
+          <details class="side-fold">
+            <summary>进阶练习<span class="side-fold-hint">考试 / PK / 代码</span></summary>
+            <div class="side-fold-body">
+              <a class="side-fold-link" href="/exam"><strong>考试倒计时计划</strong><small>按复习规律铺到考前</small></a>
+              <a class="side-fold-link" href="/duel"><strong>PK 对战</strong><small>和同学比速度与准确率</small></a>
+              <a class="side-fold-link" href="/code"><strong>代码题</strong><small>在网页里编译运行 C++</small></a>
+            </div>
+          </details>
         </section>
 
         <section class="side-section">
@@ -630,6 +610,7 @@
   <script src="{{ url_for('static', filename='vendor/katex/katex.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='vendor/katex/contrib/auto-render.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/image-editor.js') }}?v={{ asset_version }}" defer></script>
+  <script src="{{ url_for('static', filename='js/topbar.js') }}?v={{ asset_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_version }}" defer></script>
 </body>
 </html>

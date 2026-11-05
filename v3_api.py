@@ -916,7 +916,7 @@ def _page(template, **extra):
     if not user:
         return redirect("/login")
     return render_template(template, version=core.APP_VERSION, asset_version=core.APP_VERSION,
-                           username=user["username"], **extra)
+                           username=user["username"], is_admin=(user["role"] == "admin"), **extra)
 
 
 @bp.get("/exam")

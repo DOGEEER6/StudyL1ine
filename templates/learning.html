@@ -7,13 +7,13 @@
   <meta name="robots" content="noindex,nofollow">
   <title>学习状况 · 学线 LearnL1ne</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
-  {% for file in ['app.css', 'minimal.css', 'notebook.css', 'learning.css', 'subjects.css'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/' + file) }}?v={{ asset_version }}">{% endfor %}
+  {% for file in ['app.css', 'minimal.css', 'notebook.css', 'learning.css', 'subjects.css', 'topbar.css'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/' + file) }}?v={{ asset_version }}">{% endfor %}
 </head>
 <body class="app-page minimal-page learning-page">
   {% include 'icons.html' %}
-  <header class="topbar">
+  <header class="topbar" data-admin="{{ 1 if is_admin else 0 }}">
     <a class="brand" href="/"><span class="brand-mark">∫</span><span class="brand-text"><strong>学线</strong><small>LearnL1ne · 错一题，讲一遍</small></span></a>
-    <nav class="topbar-nav" aria-label="主导航"><a class="nav-link" href="/">错题本</a><a class="nav-link" href="/?action=review">复习</a><a class="nav-link active" href="/learning" aria-current="page">学习状况</a></nav>
+    <nav class="topbar-nav" aria-label="主导航"><a class="nav-link" href="/">错题本</a><a class="nav-link" href="/?action=review">复习</a><a class="nav-link active" href="/learning" aria-current="page">学习状况</a><details class="nav-more"><summary class="nav-link">进阶</summary><div class="nav-more-menu"><a href="/exam">考试计划</a><a href="/duel">PK 对战</a><a href="/code">代码题</a></div></details><a class="nav-link" href="/admin" data-admin-only>管理</a></nav>
     <div class="topbar-actions"><a class="btn btn-primary btn-sm" href="/?action=add"><svg class="icon"><use href="#i-plus"></use></svg><span>记一题</span></a></div>
   </header>
   <main class="learning-shell">
@@ -44,6 +44,7 @@
     <a href="/learning" id="mobile-learning" aria-current="page"><svg class="icon"><use href="#i-chart"></use></svg><span>学习状况</span></a>
     <a href="/?action=settings" id="mobile-settings"><svg class="icon"><use href="#i-settings"></use></svg><span>我的</span></a>
   </nav>
+  <script src="{{ url_for('static', filename='js/topbar.js') }}?v={{ asset_version }}" defer></script>
   <script src="{{ url_for('static', filename='js/learning.js') }}?v={{ asset_version }}" defer></script>
 </body>
 </html>

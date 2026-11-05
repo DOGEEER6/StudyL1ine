@@ -57,6 +57,7 @@
         $('result-title').textContent = '等待对手加入';
         $('result-body').innerHTML = '<p>把这个邀请码发给同学：</p><p class="duel-code">' + V3.esc(duel.code) + '</p>' +
           '<p class="v3-muted">他加入后，你们就会拿到同一套题（' + duel.total + ' 题）。</p>';
+        V3.math($('result-body'));
         return;
       }
       if (duel.status === 'finished') { return showResult(id); }
@@ -78,6 +79,7 @@
     if (!q) { return finish(); }
     $('play-title').textContent = '第 ' + (state.index + 1) + ' / ' + duel.total + ' 题';
     $('play-problem').textContent = q.problem || q.title;
+    V3.math($('play-problem'));
     $('play-answer').value = '';
     $('play-feedback').textContent = '';
     $('play-progress').innerHTML = duel.questions.map(function (item, i) {
@@ -133,6 +135,7 @@
         ? '<table style="width:100%;border-collapse:collapse;margin-top:10px"><thead><tr style="text-align:left;color:var(--v3-muted);font-size:13px"><th>选手</th><th>正确</th><th>用时</th></tr></thead><tbody>' + rows + '</tbody></table>'
         : '<p class="v3-muted">还没有成绩。</p>';
       if (!finished) $('result-body').innerHTML += '<p class="v3-muted" style="margin-top:10px">对手完成后刷新这里就能看到最终胜负。</p>';
+      V3.math($('result-body'));
     } catch (err) { V3.fail(err); }
   }
 

@@ -1,0 +1,409 @@
+/* 全站统一顶栏 —— 首页 / 学习状况 / 管理 / v3 各页共用同一套结构与配色。
+   这是最后加载的样式，用于覆盖 app.css 里的旧 .topbar 规则。 */
+
+:root {
+  --topbar-h: 64px;
+}
+
+.topbar {
+  --tb-bg: rgba(255, 255, 255, 0.88);
+  --tb-line: rgba(17, 24, 39, 0.09);
+  --tb-ink: #20262f;
+  --tb-muted: #6b7684;
+  --tb-accent: #2563eb;
+  --tb-accent-soft: rgba(37, 99, 235, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  height: var(--topbar-h, 64px);
+  min-height: var(--topbar-h, 64px);
+  padding: 0 22px;
+  border-bottom: 1px solid var(--tb-line);
+  background: var(--tb-bg);
+  color: var(--tb-ink);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+}
+
+body.v3-page .topbar,
+body.learning-page .topbar,
+body.admin-page .topbar {
+  --tb-bg: rgba(246, 250, 255, 0.92);
+  --tb-line: rgba(15, 40, 80, 0.1);
+  --tb-ink: #16233a;
+  --tb-muted: #5b6b83;
+}
+
+.topbar-left,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar .brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding-bottom: 2px;
+  border-radius: 11px;
+  background: #1f2937;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  font-style: italic;
+  line-height: 1;
+}
+
+.topbar .brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.topbar .brand-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.topbar .brand-text small {
+  margin-top: 2px;
+  color: var(--tb-muted);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.topbar .nav-link {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  min-height: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--tb-muted);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.topbar .nav-link:hover {
+  background: var(--tb-accent-soft);
+  color: var(--tb-ink);
+}
+
+.topbar .nav-link.active {
+  background: var(--tb-accent-soft);
+  color: var(--tb-accent);
+  font-weight: 600;
+}
+
+.nav-more {
+  position: relative;
+}
+
+.nav-more > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-more > summary::after {
+  content: "▾";
+  font-size: 9px;
+  opacity: 0.65;
+}
+
+.nav-more[open] > summary {
+  background: var(--tb-accent-soft);
+  color: var(--tb-ink);
+}
+
+.nav-more:not([open]) .nav-more-menu {
+  display: none;
+}
+
+.nav-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 6px;
+  border: 1px solid var(--tb-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.14);
+  transform: translateX(-50%);
+}
+
+.nav-more-menu a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--tb-ink);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-more-menu a:hover {
+  background: var(--tb-accent-soft);
+}
+
+.nav-more-menu a.active {
+  color: var(--tb-accent);
+  font-weight: 600;
+}
+
+.topbar .user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 4px;
+  border: 1px solid var(--tb-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--tb-ink);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.topbar .user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--tb-accent-soft);
+  color: var(--tb-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.topbar .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.topbar .btn .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.topbar .btn-primary {
+  background: #1f2937;
+  color: #fff;
+}
+
+.topbar .btn-primary:hover {
+  background: #111827;
+}
+
+.topbar .btn-ghost {
+  border-color: var(--tb-line);
+  background: #fff;
+  color: var(--tb-muted);
+}
+
+.topbar .btn-ghost:hover {
+  color: var(--tb-ink);
+}
+
+.topbar .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--tb-muted);
+  cursor: pointer;
+}
+
+.topbar .icon-btn:hover {
+  background: var(--tb-accent-soft);
+  color: var(--tb-ink);
+}
+
+.topbar .icon-btn .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* v3 页面不加载 app.css，这里补上图标雪碧图的隐藏规则 */
+.svg-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.topbar .icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 首页侧栏的可折叠「进阶练习」分组 */
+.side-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 2px;
+  color: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.side-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.side-fold > summary::before {
+  content: "▸";
+  font-size: 9px;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+
+.side-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.side-fold-hint {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 10.5px;
+  opacity: 0.55;
+}
+
+.side-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px 10px;
+}
+
+.side-fold-link {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 9px;
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.side-fold-link:hover {
+  background: var(--tb-accent-soft, rgba(37, 99, 235, 0.1));
+}
+
+.side-fold-link strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.side-fold-link small {
+  margin-top: 2px;
+  font-size: 10.5px;
+  opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .topbar .btn-ghost.hide-sm,
+  .topbar .hide-sm {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 6px;
+    height: auto;
+    min-height: 0;
+    padding: 8px 12px;
+  }
+
+  .topbar-nav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topbar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar .brand-text small {
+    display: none;
+  }
+
+  .nav-more-menu {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+}

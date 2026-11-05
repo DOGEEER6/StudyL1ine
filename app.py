@@ -612,8 +612,15 @@ def require_admin():
 def index_page():
     if not require_login():
         return redirect(url_for("login_page", next=request.full_path.rstrip("?")))
+    user = current_user() or {}
+    try:
+        username = user["username"]
+        is_admin = user["role"] == "admin"
+    except (KeyError, IndexError, TypeError):
+        username, is_admin = "", False
     return render_template(
-        "index.html", app_version=APP_VERSION, asset_version=APP_VERSION
+        "index.html", app_version=APP_VERSION, asset_version=APP_VERSION,
+        username=username, is_admin=is_admin,
     )
 
 
@@ -651,7 +658,8 @@ def admin_page():
 def learning_page():
     if not require_login():
         return redirect(url_for("login_page", next="/learning"))
-    return render_template("learning.html", app_version=APP_VERSION, asset_version=APP_VERSION)
+    return render_template("learning.html", app_version=APP_VERSION, asset_version=APP_VERSION,
+                           is_admin=(current_user()["role"] == "admin"))
 
 
 @app.get("/api/learning")

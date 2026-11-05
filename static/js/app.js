@@ -3855,7 +3855,11 @@
   }
 
   function bindSettings() {
-    $("#open-settings").addEventListener("click", openSettings);
+    $("#open-settings").addEventListener("click", (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      openSettings();
+    });
     $("#subject-add-form").addEventListener("submit",event=>{
       event.preventDefault();
       const kindInput = $("#subject-new-kind");
@@ -4175,11 +4179,20 @@
       const dialog = button.closest("dialog");
       if (dialog) closeDialog(dialog);
     });
-    $("#header-add").addEventListener("click", () => openEditor());
+    $("#header-add").addEventListener("click", (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      openEditor();
+    });
     $("#hero-add").addEventListener("click", () => openEditor());
     ["#hero-review", "#nav-review", "#side-review"].forEach((selector) => {
       const button = $(selector);
-      if (button) button.addEventListener("click", () => startDueReview());
+      if (!button) return;
+      button.addEventListener("click", (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+        startDueReview();
+      });
     });
     const navMenuBtn = $("#nav-menu-btn");
     if (navMenuBtn) {
