@@ -251,6 +251,7 @@
         body: { requirement: requirement, entry_id: currentEntry, use_ai: false }
       });
       var found = res.tests || [];
+      if (found.length) setTests(found);   // 题面里的样例先上，别等 AI
       progress.step("AI 正在出测试点（最多 " + TEST_CAP + " 组）…");
       var ai = null;
       try {
@@ -640,15 +641,121 @@
         $("console-out").hidden = false;
         $("console-out").textContent = "编译失败：\n" + (res.compile_error || "（没有错误信息）");
         status('<span class="fail">Compile Error</span>', cost);
+        saveSubmission({ verdict: "CE", passed: 0, total: 0, compiled: false, results: [] },
+          Date.now() - started);
         return;
       }
       renderVerdict(res);
       status('<span class="' + (res.verdict === "AC" ? "pass" : "fail") + '">' + res.verdict +
         '</span> <span class="v3-muted">' + res.passed + " / " + res.total + " 通过</span>", cost);
+      saveSubmission(res, Date.now() - started);
     } catch (err) {
       status('<span class="fail">' + V3.esc(err.message) + "</span>");
     } finally {
       button.disabled = false;
+    }
+  }
+
+  /* ---------------- 提交记录 ---------------- */
+  function historyBadge(verdict) {
+    var v = (verdict || "WA").toUpperCase();
+    var cls = ["AC", "WA", "TLE", "RE", "CE"].indexOf(v) >= 0 ? v : "WA";
+    return '<span class="hist-badge v-' + cls + '">' + cls + "</span>";
+  }
+
+  function historyAgo(text) {
+    if (!text) return "";
+    var then = Date.parse(String(text).replace(" ", "T"));
+    if (isNaN(then)) return V3.fmtTime(text);
+    var mins = Math.round((Date.now() - then) / 60000);
+    if (mins < 1) return "刚刚";
+    if (mins < 60) return mins + " 分钟前";
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours + " 小时前";
+    var days = Math.round(hours / 24);
+    if (days < 30) return days + " 天前";
+    return V3.fmtTime(text).slice(0, 10);
+  }
+
+  async function openHistory() {
+    $("history-modal").hidden = false;
+    var list = $("history-list");
+    list.innerHTML = '<p class="ide-hint">正在读记录…</p>';
+    try {
+      var res = await V3.api("/api/v3/code/submissions?limit=30");
+      renderHistory(res.items || []);
+    } catch (err) {
+      list.innerHTML = '<p class="ide-hint">' + V3.esc(err.message) + "</p>";
+    }
+  }
+
+  function renderHistory(items) {
+    var list = $("history-list");
+    if (!items.length) {
+      list.innerHTML = '<p class="ide-hint">还没有提交记录。点「提交评测」跑完一次就会记在这里。</p>';
+      return;
+    }
+    list.innerHTML = items.map(function (item) {
+      var meta = [];
+      if (item.total) meta.push(item.passed + " / " + item.total);
+      if (item.elapsed_ms) meta.push((item.elapsed_ms / 1000).toFixed(1) + "s");
+      meta.push(historyAgo(item.created_at));
+      return '<button class="history-row" type="button" data-id="' + V3.esc(item.id) + '">' +
+        historyBadge(item.verdict) +
+        '<span class="history-main"><span class="history-title">' + V3.esc(item.title || "未命名题目") +
+        '</span><span class="history-preview">' + V3.esc(item.preview || "") + "</span></span>" +
+        '<span class="history-meta">' + meta.map(function (m) {
+          return "<span>" + V3.esc(m) + "</span>";
+        }).join("") + "</span></button>";
+    }).join("");
+  }
+
+  async function openSubmission(id) {
+    try {
+      var res = await V3.api("/api/v3/code/submissions/" + encodeURIComponent(id));
+      var item = res.item || {};
+      currentEntry = item.entry_id || null;
+      $("crumb-title").textContent = item.title || "题目列表";
+      $("prob-title").textContent = item.title || "题目";
+      $("save-hint").textContent = "从提交记录载入";
+      setRequirement(item.problem || "");
+      $("code-source").value = item.source || "";
+      refreshGutter();
+      setTests(Array.isArray(item.tests) ? item.tests : []);
+      $("history-modal").hidden = true;
+      V3.toast("已载入这次提交的题目和代码");
+    } catch (err) {
+      V3.toast(err.message || "载入失败");
+    }
+  }
+
+  function closeHistory() {
+    $("history-modal").hidden = true;
+  }
+
+  // 提交评测后写一条记录（失败不影响评测结果）
+  async function saveSubmission(res, elapsedMs) {
+    var problem = ($("code-requirement").value || "").trim();
+    var title = ($("prob-title").textContent || "").trim();
+    if (title === "题目") title = "";
+    try {
+      await V3.api("/api/v3/code/submissions", {
+        method: "POST",
+        body: {
+          entry_id: currentEntry || "",
+          title: title,
+          problem: problem,
+          source: $("code-source").value,
+          tests: tests,
+          verdict: res.verdict || (res.compiled ? "" : "CE"),
+          passed: res.passed || 0,
+          total: res.total || 0,
+          elapsed_ms: elapsedMs,
+          detail: res.results || []
+        }
+      });
+    } catch (err) {
+      console.warn("提交记录保存失败", err && err.message);
     }
   }
 
@@ -723,6 +830,15 @@
     $("practice-topic").focus();
   });
   $("pick-bank").addEventListener("click", openBank);
+  $("open-history").addEventListener("click", openHistory);
+  $("history-close").addEventListener("click", closeHistory);
+  $("history-modal").addEventListener("click", function (event) {
+    if (event.target === $("history-modal")) closeHistory();
+  });
+  $("history-list").addEventListener("click", function (event) {
+    var row = event.target.closest(".history-row");
+    if (row && row.dataset.id) openSubmission(row.dataset.id);
+  });
   $("bank-close").addEventListener("click", closeBank);
   $("bank-modal").addEventListener("click", function (event) {
     if (event.target === $("bank-modal")) closeBank();

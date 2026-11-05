@@ -1415,6 +1415,93 @@ def api_code_practice():
                    samples=[{"input": s_in, "output": s_out}] if (s_in or s_out) else [])
 
 
+# ---------------------------------------------------------------------------
+# 提交记录
+# ---------------------------------------------------------------------------
+def _clip(value, limit):
+    text = str(value or "")
+    return text if len(text) <= limit else text[:limit]
+
+
+@bp.post("/api/v3/code/submissions")
+def api_code_submission_save():
+    data = body()
+    tests = data.get("tests") or []
+    if not isinstance(tests, list):
+        tests = []
+    detail = data.get("detail") or []
+    if not isinstance(detail, list):
+        detail = []
+    source = _clip(data.get("source"), 60000)
+    if not source.strip():
+        fail("代码是空的，先写点东西再提交")
+    sid = "s_" + secrets.token_hex(8)
+    db().execute(
+        "INSERT INTO code_submissions (id, user_id, entry_id, title, problem, source, tests,"
+        " verdict, passed, total, elapsed_ms, detail, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (sid, uid(), str(data.get("entry_id") or ""), _clip(data.get("title"), 120),
+         _clip(data.get("problem"), 12000), source, json.dumps(tests[:20], ensure_ascii=False),
+         str(data.get("verdict") or "")[:8], int(data.get("passed") or 0),
+         int(data.get("total") or 0), int(data.get("elapsed_ms") or 0),
+         json.dumps(detail[:20], ensure_ascii=False), core.now_utc()),
+    )
+    db().commit()
+    return jsonify(ok=True, id=sid), 201
+
+
+@bp.get("/api/v3/code/submissions")
+def api_code_submission_list():
+    try:
+        limit = max(1, min(100, int(request.args.get("limit") or 30)))
+    except (TypeError, ValueError):
+        limit = 30
+    rows = db().execute(
+        "SELECT id, entry_id, title, problem, verdict, passed, total, elapsed_ms, created_at"
+        " FROM code_submissions WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+        (uid(), limit),
+    ).fetchall()
+    items = []
+    for row in rows:
+        problem = (row["problem"] or "").strip()
+        lines = [line for line in problem.splitlines() if line.strip()]
+        items.append({
+            "id": row["id"],
+            "entry_id": row["entry_id"],
+            "title": row["title"] or (lines[0][:40] if lines else "未命名题目"),
+            "preview": " ".join(lines)[:120],
+            "verdict": row["verdict"],
+            "passed": row["passed"],
+            "total": row["total"],
+            "elapsed_ms": row["elapsed_ms"],
+            "created_at": row["created_at"],
+        })
+    return jsonify(ok=True, items=items)
+
+
+@bp.get("/api/v3/code/submissions/<sid>")
+def api_code_submission_get(sid):
+    row = db().execute(
+        "SELECT * FROM code_submissions WHERE id=? AND user_id=?", (sid, uid())
+    ).fetchone()
+    if not row:
+        fail("记录不存在", 404)
+    return jsonify(ok=True, item={
+        "id": row["id"],
+        "entry_id": row["entry_id"],
+        "title": row["title"],
+        "problem": row["problem"],
+        "source": row["source"],
+        "tests": core.parse_json_field(row["tests"], []),
+        "verdict": row["verdict"],
+        "passed": row["passed"],
+        "total": row["total"],
+        "elapsed_ms": row["elapsed_ms"],
+        "detail": core.parse_json_field(row["detail"], []),
+        "created_at": row["created_at"],
+    })
+
+
 @bp.get("/api/v3/code/health")
 def api_code_health():
     return jsonify(ok=True, judge=judge.image_ready(), image=judge.JUDGE_IMAGE)

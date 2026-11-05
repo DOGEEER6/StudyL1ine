@@ -12,6 +12,7 @@
     <div class="ide-head-right">
       <button class="ide-btn small practice-btn" id="pick-practice" type="button" title="输入知识点，AI 现场出一道题"><span class="practice-spark">✦</span> AI 出题<span class="beta-tag">Beta</span></button>
       <button class="ide-btn small ghost" id="pick-bank" type="button" title="从错题里的 C++ 题中选一道">题库</button>
+      <button class="ide-btn small ghost" id="open-history" type="button" title="看看以前交过的代码">提交记录</button>
       <button class="ide-btn small ghost" id="pick-image" type="button" title="上传题目照片，AI 识别成文字">图片</button>
       <button class="ide-btn small ghost" id="toggle-problem" type="button">收起题目</button>
     </div>
@@ -138,6 +139,16 @@ int main() {
       <button class="ide-btn small primary" id="practice-go" type="button">生成题目</button>
       <span class="ide-hint" id="practice-status"></span>
     </div>
+  </div>
+</div>
+<div class="ide-modal" id="history-modal" hidden>
+  <div class="ide-modal-card" role="dialog" aria-label="提交记录">
+    <header class="ide-modal-head">
+      <strong>提交记录</strong>
+      <button class="ide-mini" id="history-close" type="button">关闭</button>
+    </header>
+    <p class="ide-hint">点一条记录可以把当时的题目和代码重新载入，接着改。</p>
+    <div class="ide-bank-list" id="history-list"></div>
   </div>
 </div>
 <div class="ide-modal" id="bank-modal" hidden>

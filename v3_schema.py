@@ -104,9 +104,28 @@ TABLES = [
         PRIMARY KEY (duel_id, user_id, idx)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS code_submissions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        entry_id TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        problem TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        tests TEXT NOT NULL DEFAULT '[]',
+        verdict TEXT NOT NULL DEFAULT '',
+        passed INTEGER NOT NULL DEFAULT 0,
+        total INTEGER NOT NULL DEFAULT 0,
+        elapsed_ms INTEGER NOT NULL DEFAULT 0,
+        detail TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+    )
+    """,
 ]
 
+
 INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_code_submissions_user ON code_submissions(user_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_exams_user ON exams (user_id, exam_at)",
     "CREATE INDEX IF NOT EXISTS idx_exam_plans_exam ON exam_plans (exam_id, day)",
     "CREATE INDEX IF NOT EXISTS idx_explain_sessions_entry ON explain_sessions (entry_id, created_at DESC)",
