@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#dceeff">
   <meta name="robots" content="noindex,nofollow">
-  <title>学习状况 · 数学错题本</title>
+  <title>学习状况 · 第二遍</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
   {% for file in ['app.css', 'minimal.css', 'notebook.css', 'learning.css', 'subjects.css'] %}<link rel="stylesheet" href="{{ url_for('static', filename='css/' + file) }}?v={{ asset_version }}">{% endfor %}
 </head>
 <body class="app-page minimal-page learning-page">
   {% include 'icons.html' %}
   <header class="topbar">
-    <a class="brand" href="/"><span class="brand-mark">∫</span><span class="brand-text"><strong>数学错题本</strong><small>记录 · 复习 · 掌握</small></span></a>
+    <a class="brand" href="/"><span class="brand-mark">遍</span><span class="brand-text"><strong>第二遍</strong><small>错一题，讲一遍</small></span></a>
     <nav class="topbar-nav" aria-label="主导航"><a class="nav-link" href="/">错题本</a><a class="nav-link" href="/?action=review">复习</a><a class="nav-link active" href="/learning" aria-current="page">学习状况</a></nav>
     <div class="topbar-actions"><a class="btn btn-primary btn-sm" href="/?action=add"><svg class="icon"><use href="#i-plus"></use></svg><span>记一题</span></a></div>
   </header>

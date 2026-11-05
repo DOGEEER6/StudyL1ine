@@ -29,8 +29,19 @@ import uuid
 import zipfile
 from collections import Counter, defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
-from learning import CATALOG, learning_summary
-from subjects import DEFAULT_SUBJECTS, MAX_SUBJECTS, normalize_name, list_subjects, expand_legacy_subject_column
+from learning import CATALOG, catalog_for, learning_summary
+from subjects import (
+    DEFAULT_SUBJECTS,
+    MAX_SUBJECTS,
+    SUBJECT_KINDS,
+    SUGGESTIONS,
+    expand_legacy_subject_column,
+    list_subjects,
+    normalize_kind,
+    normalize_name,
+    subject_kind,
+)
+import v3_schema
 from datetime import date, datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -60,7 +71,7 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 # Paths & constants
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "2.2.0"
+APP_VERSION = "3.0.0"
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("MATH_DATA_DIR", BASE_DIR / "data")).resolve()
 DB_PATH = DATA_DIR / "math.db"
@@ -327,6 +338,7 @@ def migrate_db(db: sqlite3.Connection) -> None:
         "ON entries (user_id, occurred_at DESC, created_at DESC)"
     )
     expand_legacy_subject_column(db)
+    v3_schema.apply(db)
     # A restart cannot resume an in-flight background job.
     db.execute(
         "UPDATE entries SET ai_status = 'idle', ai_updated_at = ? "
@@ -643,13 +655,15 @@ def subject_name(user_id, subject, db=None):
             db.close()
 
 
-def write_subject(db, uid, name, subject_id=None):
+def write_subject(db, uid, name, subject_id=None, kind=None):
+    subjects = list_subjects(db, uid)
+    current = next((s for s in subjects if s["id"] == subject_id), None)
     try:
         name = normalize_name(name)
+        kind = normalize_kind(kind, (current or {}).get("kind", "math"))
     except ValueError as exc:
         raise ApiError(str(exc))
-    subjects = list_subjects(db, uid)
-    if subject_id is not None and subject_id not in {s["id"] for s in subjects}:
+    if subject_id is not None and current is None:
         raise ApiError("科目不存在", 404)
     if any(s["id"] != subject_id and s["name"].casefold() == name.casefold() for s in subjects):
         raise ApiError("已经有同名科目，请换一个名称", 409)
@@ -657,11 +671,12 @@ def write_subject(db, uid, name, subject_id=None):
         if len(subjects) >= MAX_SUBJECTS:
             raise ApiError(f"最多可设置 {MAX_SUBJECTS} 个科目")
         subject_id = "s_" + uuid.uuid4().hex
-    db.execute("INSERT INTO subjects(user_id,id,name,created_at) VALUES(?,?,?,?) "
-               "ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name", (uid, subject_id, name, now_utc()))
+    db.execute("INSERT INTO subjects(user_id,id,name,kind,created_at) VALUES(?,?,?,?,?) "
+               "ON CONFLICT(user_id,id) DO UPDATE SET name=excluded.name, kind=excluded.kind",
+               (uid, subject_id, name, kind, now_utc()))
     if has_request_context():
         g.pop("subject_names", None)
-    return {"id": subject_id, "name": name}
+    return {"id": subject_id, "name": name, "kind": kind}
 
 
 @app.get("/api/subjects")
@@ -676,7 +691,7 @@ def api_subject_save(subject_id=None):
     db = get_db()
     db.execute("BEGIN IMMEDIATE")
     try:
-        saved = write_subject(db, current_user()["id"], data.get("name"), subject_id)
+        saved = write_subject(db, current_user()["id"], data.get("name"), subject_id, data.get("kind"))
         db.commit()
     except Exception:
         db.rollback()
@@ -697,6 +712,8 @@ def api_me():
             "role": user["role"],
         },
         subjects=list_subjects(get_db(), user["id"]),
+        kinds=SUBJECT_KINDS,
+        suggestions=SUGGESTIONS,
         csrf=session.get("csrf"),
         version=APP_VERSION,
     )
@@ -1562,8 +1579,13 @@ def parse_analysis_json(text: str, subject: str, needs_ocr: bool, metadata_only:
 
 def do_solve(row: sqlite3.Row, config: dict) -> tuple[dict, str]:
     metadata_only = has_provided_solution(row)
-    name = subject_name(row["user_id"], row["subject"])
-    catalog = CATALOG.get(row["subject"], {}) if name == DEFAULT_SUBJECTS.get(row["subject"]) else {}
+    # Runs on a worker thread too, so never touch the request-scoped handle.
+    own = connect_db()
+    try:
+        kind = subject_kind(own, row["user_id"], row["subject"])
+    finally:
+        own.close()
+    catalog = catalog_for(kind, row["subject"])
     attachments = [a for a in parse_json_field(row["attachments"], []) if (a.get("kind") or "problem") == "problem"]
     urls = [url for item in attachments if (url := attachment_data_url(item))]
     problem = (row["problem"] or "").strip()[:12000]
@@ -3354,6 +3376,14 @@ def resume_analysis_jobs():
 
 
 resume_analysis_jobs()
+
+
+# v3 features (exams, duels, explanations, judging, code playground) live in a
+# separate module; register it last so the core module object is fully built.
+import sys as _sys  # noqa: E402
+import v3_api  # noqa: E402
+
+v3_api.register(app, _sys.modules[__name__])
 
 
 if __name__ == "__main__":

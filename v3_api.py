@@ -1,0 +1,933 @@
+"""第二遍 v3: 考试复习计划、异步 PK、我来讲解、拍照批阅、代码题。
+
+Every route lives under /api/v3 and is registered at the very end of app.py so
+the core module object is fully initialised when we capture it here.
+"""
+import base64
+import json
+import math
+import re
+import secrets
+import uuid
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from flask import Blueprint, jsonify, redirect, render_template, request, session
+
+import judge
+
+bp = Blueprint("v3", __name__)
+core = None
+TZ = ZoneInfo("Asia/Shanghai")
+
+DUEL_SIZE = 5
+DUEL_MINUTES = 8
+EXPLAIN_TURNS = 5
+
+
+def register(app, core_module):
+    global core
+    core = core_module
+    app.register_blueprint(bp)
+
+
+# ---------------------------------------------------------------------------
+# small helpers
+# ---------------------------------------------------------------------------
+def db():
+    return core.get_db()
+
+
+def uid():
+    return core.current_user()["id"]
+
+
+def body():
+    return request.get_json(silent=True) or {}
+
+
+def fail(message, status=400):
+    raise core.ApiError(message, status)
+
+
+def now():
+    return datetime.now(TZ)
+
+
+def iso(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M")
+
+
+def parse_dt(value, field="时间"):
+    text = str(value or "").strip().replace(" ", "T")
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=TZ)
+        except ValueError:
+            continue
+    fail(f"{field}格式不正确")
+
+
+def json_list(value):
+    return core.parse_json_field(value, [])
+
+
+def entry_label(row):
+    return (row["title"] or (row["problem"] or "")[:18] or "未命名题目").strip()
+
+
+def require_page_login():
+    user = core.current_user()
+    if not user:
+        return None, redirect("/login")
+    return user, None
+
+
+# ---------------------------------------------------------------------------
+# 考试倒计时 & 复习计划
+# ---------------------------------------------------------------------------
+@bp.get("/api/v3/exams")
+def api_exams():
+    db_ = db()
+    rows = db_.execute(
+        "SELECT * FROM exams WHERE user_id=? ORDER BY exam_at", (uid(),)
+    ).fetchall()
+    today = now().date()
+    result = []
+    for row in rows:
+        exam_at = parse_dt(row["exam_at"])
+        days_left = (exam_at.date() - today).days
+        plan = db_.execute(
+            "SELECT COUNT(*) AS days, COALESCE(SUM(target),0) AS target, "
+            "COALESCE(SUM(done),0) AS done FROM exam_plans WHERE exam_id=?",
+            (row["id"],),
+        ).fetchone()
+        result.append({
+            "id": row["id"],
+            "title": row["title"],
+            "subject": row["subject"],
+            "subject_name": core.subject_name(uid(), row["subject"], db_),
+            "exam_at": row["exam_at"],
+            "note": row["note"],
+            "days_left": days_left,
+            "urgent": 0 <= days_left <= 3,
+            "plan_days": plan["days"],
+            "plan_target": plan["target"],
+            "plan_done": plan["done"],
+        })
+    return jsonify(exams=result)
+
+
+@bp.post("/api/v3/exams")
+def api_exam_create():
+    data = body()
+    title = str(data.get("title") or "").strip()
+    if not title:
+        fail("请填写考试名称")
+    exam_at = parse_dt(data.get("exam_at"), "考试时间")
+    if exam_at < now() - timedelta(days=1):
+        fail("考试时间不能早于今天")
+    subject = str(data.get("subject") or "analysis")
+    if subject not in {s["id"] for s in core.list_subjects(db(), uid())}:
+        fail("科目不存在")
+    exam_id = "e_" + uuid.uuid4().hex
+    db().execute(
+        "INSERT INTO exams(id,user_id,title,subject,exam_at,note,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?)",
+        (exam_id, uid(), title[:40], subject, iso(exam_at), str(data.get("note") or "")[:200],
+         core.now_utc(), core.now_utc()),
+    )
+    db().commit()
+    return jsonify(ok=True, id=exam_id)
+
+
+@bp.put("/api/v3/exams/<exam_id>")
+def api_exam_update(exam_id):
+    row = db().execute("SELECT * FROM exams WHERE id=? AND user_id=?", (exam_id, uid())).fetchone()
+    if not row:
+        fail("考试不存在", 404)
+    data = body()
+    fields, values = [], []
+    if "title" in data:
+        title = str(data.get("title") or "").strip()
+        if not title:
+            fail("请填写考试名称")
+        fields.append("title=?")
+        values.append(title[:40])
+    if "exam_at" in data:
+        fields.append("exam_at=?")
+        values.append(iso(parse_dt(data.get("exam_at"), "考试时间")))
+    if "note" in data:
+        fields.append("note=?")
+        values.append(str(data.get("note") or "")[:200])
+    if "subject" in data:
+        fields.append("subject=?")
+        values.append(str(data.get("subject") or row["subject"]))
+    if not fields:
+        fail("没有需要更新的内容")
+    fields.append("updated_at=?")
+    values.append(core.now_utc())
+    values.append(exam_id)
+    db().execute(f"UPDATE exams SET {', '.join(fields)} WHERE id=?", values)
+    db().commit()
+    return jsonify(ok=True)
+
+
+@bp.delete("/api/v3/exams/<exam_id>")
+def api_exam_delete(exam_id):
+    db().execute("DELETE FROM exams WHERE id=? AND user_id=?", (exam_id, uid()))
+    db().commit()
+    return jsonify(ok=True)
+
+
+def build_plan(db_, exam):
+    """Spread due entries across the days left, respecting their next review date."""
+    exam_at = parse_dt(exam["exam_at"])
+    today = now().date()
+    days_left = max((exam_at.date() - today).days, 1)
+    horizon = min(days_left, 21)
+    rows = db_.execute(
+        "SELECT * FROM entries WHERE user_id=? AND status!='mastered' "
+        "AND (subject=? OR ?='') ORDER BY review_count, occurred_at",
+        (exam["user_id"], exam["subject"], exam["subject"]),
+    ).fetchall()
+    if not rows:
+        return []
+    # priority: overdue first, then never reviewed, then weak mastery
+    def priority(row):
+        due = row["next_review_at"] or ""
+        overdue = 0 if not due or due <= core.now_utc() else 1
+        return (overdue, row["review_count"] or 0, -(row["difficulty"] or 3))
+    ordered = sorted(rows, key=priority)
+    per_day = max(1, min(20, math.ceil(len(ordered) / horizon)))
+    plan = []
+    cursor = 0
+    for i in range(horizon):
+        day = (today + timedelta(days=i)).isoformat()
+        if cursor >= len(ordered):
+            break
+        chunk = ordered[cursor:cursor + per_day]
+        cursor += per_day
+        plan.append({
+            "day": day,
+            "entry_ids": [r["id"] for r in chunk],
+            "target": len(chunk),
+        })
+    return plan
+
+
+@bp.post("/api/v3/exams/<exam_id>/plan")
+def api_exam_plan_build(exam_id):
+    db_ = db()
+    exam = db_.execute("SELECT * FROM exams WHERE id=? AND user_id=?", (exam_id, uid())).fetchone()
+    if not exam:
+        fail("考试不存在", 404)
+    plan = build_plan(db_, exam)
+    if not plan:
+        fail("这个科目还没有待复习的题目，先去添加几道错题吧")
+    db_.execute("DELETE FROM exam_plans WHERE exam_id=?", (exam_id,))
+    for item in plan:
+        db_.execute(
+            "INSERT INTO exam_plans(id,exam_id,day,entry_ids,target,done,note) VALUES(?,?,?,?,?,0,'')",
+            ("p_" + uuid.uuid4().hex, exam_id, item["day"], json.dumps(item["entry_ids"]), item["target"]),
+        )
+    db_.commit()
+    return jsonify(ok=True, plan=_plan_payload(db_, exam_id))
+
+
+def _plan_payload(db_, exam_id):
+    rows = db_.execute("SELECT * FROM exam_plans WHERE exam_id=? ORDER BY day", (exam_id,)).fetchall()
+    days = []
+    for row in rows:
+        ids = json_list(row["entry_ids"])
+        entries = []
+        if ids:
+            marks = ",".join("?" * len(ids))
+            for entry in db_.execute(f"SELECT id,title,problem,subject,status,next_review_at FROM entries WHERE id IN ({marks})", ids):
+                entries.append({
+                    "id": entry["id"],
+                    "title": entry_label(entry),
+                    "status": entry["status"],
+                    "next_review_at": entry["next_review_at"],
+                })
+        days.append({
+            "day": row["day"], "target": row["target"], "done": row["done"],
+            "entries": entries,
+        })
+    return days
+
+
+@bp.get("/api/v3/exams/<exam_id>")
+def api_exam_detail(exam_id):
+    db_ = db()
+    exam = db_.execute("SELECT * FROM exams WHERE id=? AND user_id=?", (exam_id, uid())).fetchone()
+    if not exam:
+        fail("考试不存在", 404)
+    exam_at = parse_dt(exam["exam_at"])
+    return jsonify(
+        exam={
+            "id": exam["id"],
+            "title": exam["title"],
+            "subject": exam["subject"],
+            "subject_name": core.subject_name(uid(), exam["subject"], db_),
+            "exam_at": exam["exam_at"],
+            "note": exam["note"],
+            "days_left": (exam_at.date() - now().date()).days,
+        },
+        plan=_plan_payload(db_, exam_id),
+    )
+
+
+@bp.post("/api/v3/exams/<exam_id>/plan/<day>/done")
+def api_plan_day_done(exam_id, day):
+    row = db().execute(
+        "SELECT p.* FROM exam_plans p JOIN exams e ON e.id=p.exam_id WHERE p.exam_id=? AND p.day=? AND e.user_id=?",
+        (exam_id, day, uid()),
+    ).fetchone()
+    if not row:
+        fail("计划不存在", 404)
+    value = 1 if body().get("done", True) else 0
+    db().execute("UPDATE exam_plans SET done=? WHERE id=?", (value, row["id"]))
+    db().commit()
+    return jsonify(ok=True, done=value)
+
+
+# ---------------------------------------------------------------------------
+# 异步 PK
+# ---------------------------------------------------------------------------
+def _duel_payload(db_, duel, viewer_id):
+    ids = json_list(duel["questions"])
+    questions = []
+    if ids:
+        marks = ",".join("?" * len(ids))
+        by_id = {r["id"]: r for r in db_.execute(
+            f"SELECT id,title,problem,ocr_text,subject,answer FROM entries WHERE id IN ({marks})", ids)}
+        for index, entry_id in enumerate(ids):
+            row = by_id.get(entry_id)
+            if not row:
+                continue
+            questions.append({
+                "idx": index,
+                "id": row["id"],
+                "title": entry_label(row),
+                "problem": (row["problem"] or row["ocr_text"] or "")[:2000],
+            })
+    answers = {}
+    for row in db_.execute("SELECT * FROM duel_answers WHERE duel_id=? AND user_id=?", (duel["id"], viewer_id)):
+        answers[row["idx"]] = {"choice": row["choice"], "correct": bool(row["correct"]), "seconds": row["seconds"]}
+    mine = {"answers": answers}
+    opponent_id = duel["guest_id"] if duel["host_id"] == viewer_id else duel["host_id"]
+    done_counts = {}
+    for row in db_.execute(
+        "SELECT user_id, COUNT(*) AS n FROM duel_answers WHERE duel_id=? GROUP BY user_id", (duel["id"],)
+    ):
+        done_counts[row["user_id"]] = row["n"]
+    return {
+        "id": duel["id"],
+        "code": duel["code"],
+        "subject": duel["subject"],
+        "subject_name": core.subject_name(viewer_id, duel["subject"], db_),
+        "status": duel["status"],
+        "is_host": duel["host_id"] == viewer_id,
+        "questions": questions,
+        "mine": mine,
+        "opponent_done": done_counts.get(opponent_id, 0),
+        "total": len(questions),
+        "created_at": duel["created_at"],
+        "finished_at": duel["finished_at"],
+        "player_done": done_counts.get(viewer_id, 0) >= len(questions),
+    }
+
+
+def _pick_questions(db_, subject):
+    rows = db_.execute(
+        "SELECT id FROM entries WHERE subject=? AND problem!='' ORDER BY RANDOM() LIMIT ?",
+        (subject, DUEL_SIZE),
+    ).fetchall()
+    if not rows:
+        rows = db_.execute(
+            "SELECT id FROM entries WHERE subject=? ORDER BY RANDOM() LIMIT ?", (subject, DUEL_SIZE)
+        ).fetchall()
+    return [row["id"] for row in rows]
+
+
+@bp.post("/api/v3/duels")
+def api_duel_create():
+    db_ = db()
+    data = body()
+    subject = str(data.get("subject") or "analysis")
+    if subject not in {s["id"] for s in core.list_subjects(db_, uid())}:
+        fail("科目不存在")
+    ids = _pick_questions(db_, subject)
+    if len(ids) < 1:
+        fail("这个科目还没有题目，先添加几道再来 PK")
+    code = secrets.token_hex(3).upper()
+    duel_id = "d_" + uuid.uuid4().hex
+    db_.execute(
+        "INSERT INTO duels(id,code,subject,host_id,guest_id,questions,status,created_at,expires_at,duration) "
+        "VALUES(?,?,?,?,'',?,'waiting',?,?,?)",
+        (duel_id, code, subject, uid(), json.dumps(ids), core.now_utc(),
+         (now() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M"), DUEL_MINUTES * 60),
+    )
+    db_.commit()
+    return jsonify(ok=True, id=duel_id, code=code)
+
+
+@bp.get("/api/v3/duels")
+def api_duel_list():
+    db_ = db()
+    me = uid()
+    rows = db_.execute(
+        "SELECT * FROM duels WHERE host_id=? OR guest_id=? ORDER BY created_at DESC LIMIT 30", (me, me)
+    ).fetchall()
+    out = []
+    for row in rows:
+        out.append({
+            "id": row["id"], "code": row["code"], "status": row["status"],
+            "subject": row["subject"], "subject_name": core.subject_name(me, row["subject"], db_),
+            "is_host": row["host_id"] == me,
+            "created_at": row["created_at"],
+            "opponent": "等待对手" if (row["host_id"] == me and not row["guest_id"]) or (row["guest_id"] == me and not row["host_id"]) else "已匹配",
+            "result": _duel_result(db_, row, me) if row["status"] == "finished" else "",
+        })
+    return jsonify(duels=out)
+
+
+def _duel_result(db_, duel, viewer_id):
+    rows = db_.execute(
+        "SELECT user_id, SUM(correct) AS score, SUM(seconds) AS secs, COUNT(*) AS n "
+        "FROM duel_answers WHERE duel_id=? GROUP BY user_id", (duel["id"],)
+    ).fetchall()
+    stats = {row["user_id"]: row for row in rows}
+    if len(stats) < 2:
+        return "已结束"
+    opponent = duel["guest_id"] if duel["host_id"] == viewer_id else duel["host_id"]
+    if viewer_id not in stats or opponent not in stats:
+        return "已结束"
+    a, b = stats[viewer_id], stats[opponent]
+    if a["score"] != b["score"]:
+        return "胜利" if a["score"] > b["score"] else "惜败"
+    if abs((a["secs"] or 0) - (b["secs"] or 0)) > 0.5:
+        return "胜利" if (a["secs"] or 0) < (b["secs"] or 0) else "惜败"
+    return "平局"
+
+
+@bp.get("/api/v3/duels/lobby")
+def api_duel_lobby():
+    db_ = db()
+    subject = request.args.get("subject", "")
+    rows = db_.execute(
+        "SELECT d.*, u.username FROM duels d JOIN users u ON u.id=d.host_id "
+        "WHERE d.status='waiting' AND d.host_id!=? AND d.subject LIKE ? ORDER BY d.created_at DESC LIMIT 20",
+        (uid(), f"%{subject}%"),
+    ).fetchall()
+    return jsonify(duels=[{
+        "id": row["id"], "code": row["code"], "host": row["username"],
+        "subject_name": core.subject_name(uid(), row["subject"], db_),
+        "count": len(json_list(row["questions"])), "created_at": row["created_at"],
+    } for row in rows])
+
+
+@bp.post("/api/v3/duels/join")
+def api_duel_join():
+    db_ = db()
+    code = str(body().get("code") or "").strip().upper()
+    if not code:
+        fail("请填写邀请码")
+    row = db_.execute("SELECT * FROM duels WHERE code=? AND status='waiting' ORDER BY created_at DESC", (code,)).fetchone()
+    if not row:
+        fail("邀请码不存在或已失效", 404)
+    if row["host_id"] == uid():
+        fail("这是你自己创建的对局")
+    db_.execute("UPDATE duels SET guest_id=?, status='ready', started_at=? WHERE id=?", (uid(), core.now_utc(), row["id"]))
+    db_.commit()
+    return jsonify(ok=True, id=row["id"])
+
+
+@bp.get("/api/v3/duels/<duel_id>")
+def api_duel_get(duel_id):
+    db_ = db()
+    row = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
+    if not row or uid() not in (row["host_id"], row["guest_id"]):
+        fail("对局不存在", 404)
+    return jsonify(duel=_duel_payload(db_, row, uid()))
+
+
+@bp.post("/api/v3/duels/<duel_id>/answer")
+def api_duel_answer(duel_id):
+    db_ = db()
+    duel = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
+    me = uid()
+    if not duel or me not in (duel["host_id"], duel["guest_id"]):
+        fail("对局不存在", 404)
+    if duel["status"] not in {"ready", "playing"}:
+        fail("对局尚未开始或已经结束")
+    data = body()
+    index = int(data.get("idx", -1))
+    text = str(data.get("text") or "").strip()[:2000]
+    seconds = max(0.0, min(600.0, float(data.get("seconds") or 0)))
+    ids = json_list(duel["questions"])
+    if not 0 <= index < len(ids):
+        fail("题号不正确")
+    entry = db_.execute("SELECT * FROM entries WHERE id=?", (ids[index],)).fetchone()
+    if not entry:
+        fail("题目已不存在", 404)
+    correct = _answer_matches(text, entry["answer"]) if text else False
+    db_.execute(
+        "INSERT INTO duel_answers(duel_id,user_id,idx,choice,correct,seconds,answered_at) VALUES(?,?,?,?,?,?,?) "
+        "ON CONFLICT(duel_id,user_id,idx) DO UPDATE SET choice=excluded.choice, correct=excluded.correct, "
+        "seconds=excluded.seconds, answered_at=excluded.answered_at",
+        (duel_id, me, index, 0, 1 if correct else 0, seconds, core.now_utc()),
+    )
+    if duel["status"] == "ready":
+        db_.execute("UPDATE duels SET status='playing' WHERE id=?", (duel_id,))
+    db_.commit()
+    return jsonify(ok=True, correct=bool(correct), answer=entry["answer"] if correct else "")
+
+
+def _normalize_answer(text):
+    value = str(text or "").strip().lower()
+    value = re.sub(r"[\s$，。；：、（）()\[\]{}]", "", value)
+    value = value.replace("，", "").replace(",", "")
+    return value
+
+
+def _answer_matches(given, expected):
+    a, b = _normalize_answer(given), _normalize_answer(expected)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if len(b) >= 3 and (b in a or a in b):
+        return True
+    return False
+
+
+@bp.post("/api/v3/duels/<duel_id>/submit")
+def api_duel_submit(duel_id):
+    db_ = db()
+    duel = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
+    me = uid()
+    if not duel or me not in (duel["host_id"], duel["guest_id"]):
+        fail("对局不存在", 404)
+    ids = json_list(duel["questions"])
+    answered = {row["idx"] for row in db_.execute(
+        "SELECT idx FROM duel_answers WHERE duel_id=? AND user_id=?", (duel_id, me))}
+    for index in range(len(ids)):
+        if index not in answered:
+            db_.execute(
+                "INSERT INTO duel_answers(duel_id,user_id,idx,choice,correct,seconds,answered_at) VALUES(?,?,?,0,0,0,?)",
+                (duel_id, me, index, core.now_utc()),
+            )
+    both = db_.execute(
+        "SELECT COUNT(DISTINCT user_id) AS n FROM duel_answers WHERE duel_id=?", (duel_id,)
+    ).fetchone()["n"]
+    status = "finished" if both >= 2 else "playing"
+    db_.execute(
+        "UPDATE duels SET status=?, finished_at=? WHERE id=?",
+        (status, core.now_utc() if status == "finished" else "", duel_id),
+    )
+    db_.commit()
+    return jsonify(ok=True, status=status, result=_duel_result(db_, duel, me))
+
+
+@bp.get("/api/v3/duels/<duel_id>/result")
+def api_duel_result(duel_id):
+    db_ = db()
+    duel = db_.execute("SELECT * FROM duels WHERE id=?", (duel_id,)).fetchone()
+    if not duel or uid() not in (duel["host_id"], duel["guest_id"]):
+        fail("对局不存在", 404)
+    rows = db_.execute(
+        "SELECT user_id, COUNT(*) AS n, SUM(correct) AS score, SUM(seconds) AS secs "
+        "FROM duel_answers WHERE duel_id=? GROUP BY user_id", (duel_id,)
+    ).fetchall()
+    names = {row["id"]: row["username"] for row in db_.execute("SELECT id,username FROM users")}
+    players = [{
+        "user_id": row["user_id"],
+        "name": names.get(row["user_id"], "同学"),
+        "score": row["score"] or 0,
+        "total": row["n"],
+        "seconds": round(row["secs"] or 0, 1),
+        "you": row["user_id"] == uid(),
+    } for row in rows]
+    return jsonify(ok=True, status=duel["status"], players=players)
+
+
+# ---------------------------------------------------------------------------
+# 我来讲解
+# ---------------------------------------------------------------------------
+EXPLAIN_SYSTEM = (
+    "你是一个刚学这一章的大一学生，正在听同学给你讲题。规则：\n"
+    "1. 你只能以学生的身份提问，绝对不能给出正确解法或答案，也不要说“你应该……”。\n"
+    "2. 每次只问一个问题，1–2 句话，口语化，符合大一学生的水平。\n"
+    "3. 优先追问对方跳过的步骤、用到的公式为什么成立、以及“为什么要这样做”。\n"
+    "4. 如果对方讲错了，用疑问句引导他自己发现，例如“可是这里符号是不是反了？”。\n"
+    "5. 如果对方讲清楚了，就表现出“哦——原来是这样”，并提出一个更深一点的小追问。\n"
+    "只输出你要说的话，不要 JSON，不要旁白。"
+)
+
+EXPLAIN_EVAL = (
+    "你是数学/编程课的助教。下面是一个学生给 AI 学生讲题的完整对话。请评价他是否真的讲懂了。\n"
+    "只返回 JSON：{\"score\": 0-100 的整数, \"verdict\": \"一句话总评\", "
+    "\"weak_points\": [\"没讲清楚的点\", ...], \"next_step\": \"下一步建议\"}。\n"
+    "评分标准：概念准确 40、步骤完整 30、能回答追问 30。只返回 JSON，不要代码围栏。"
+)
+
+
+def _entry_for_explain(row):
+    parts = [f"科目：{core.subject_name(row['user_id'], row['subject'])}",
+             f"题目：{row['problem'] or row['ocr_text'] or ''}"]
+    if row["solution"]:
+        parts.append(f"标准解析（只有你知道，不要直接告诉对方）：{row['solution'][:3000]}")
+    if row["answer"]:
+        parts.append(f"标准答案（保密）：{row['answer'][:500]}")
+    return "\n".join(parts)
+
+
+@bp.post("/api/v3/explain/start")
+def api_explain_start():
+    db_ = db()
+    data = body()
+    entry_id = str(data.get("entry_id") or "")
+    entry = db_.execute("SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, uid())).fetchone()
+    if not entry:
+        fail("题目不存在", 404)
+    open_row = db_.execute(
+        "SELECT * FROM explain_sessions WHERE entry_id=? AND user_id=? AND done=0 ORDER BY created_at DESC",
+        (entry_id, uid()),
+    ).fetchone()
+    if open_row:
+        return jsonify(ok=True, id=open_row["id"], resumed=True, turns=open_row["turns"])
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "chat")
+    messages = [
+        {"role": "system", "content": EXPLAIN_SYSTEM + "\n\n你手里的题目信息：\n" + _entry_for_explain(entry)},
+        {"role": "user", "content": "（同学坐下了，准备开始讲题。你先开口问他。）"},
+    ]
+    try:
+        text, _model, _usage = core.call_ai(config, messages)
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    session_id = "x_" + uuid.uuid4().hex
+    db_.execute(
+        "INSERT INTO explain_sessions(id,entry_id,user_id,created_at,updated_at,turns,score,verdict,weak_points,done) "
+        "VALUES(?,?,?,?,?,0,NULL,'','[]',0)",
+        (session_id, entry_id, uid(), core.now_utc(), core.now_utc()),
+    )
+    db_.execute(
+        "INSERT INTO explain_messages(id,session_id,role,content,created_at) VALUES(?,?,?,?,?)",
+        ("m_" + uuid.uuid4().hex, session_id, "assistant", text.strip()[:4000], core.now_utc()),
+    )
+    db_.commit()
+    return jsonify(ok=True, id=session_id, message=text.strip())
+
+
+@bp.get("/api/v3/explain/<session_id>")
+def api_explain_get(session_id):
+    db_ = db()
+    row = db_.execute("SELECT * FROM explain_sessions WHERE id=? AND user_id=?", (session_id, uid())).fetchone()
+    if not row:
+        fail("会话不存在", 404)
+    messages = [{"role": m["role"], "content": m["content"], "at": m["created_at"]}
+                for m in db_.execute("SELECT * FROM explain_messages WHERE session_id=? ORDER BY created_at", (session_id,))]
+    entry = db_.execute("SELECT * FROM entries WHERE id=?", (row["entry_id"],)).fetchone()
+    return jsonify(
+        session={"id": row["id"], "entry_id": row["entry_id"], "turns": row["turns"],
+                 "score": row["score"], "verdict": row["verdict"],
+                 "weak_points": json_list(row["weak_points"]), "done": bool(row["done"])},
+        entry={"id": entry["id"], "title": entry_label(entry), "problem": entry["problem"] or entry["ocr_text"]} if entry else None,
+        messages=messages,
+    )
+
+
+@bp.post("/api/v3/explain/<session_id>/message")
+def api_explain_message(session_id):
+    db_ = db()
+    row = db_.execute("SELECT * FROM explain_sessions WHERE id=? AND user_id=?", (session_id, uid())).fetchone()
+    if not row:
+        fail("会话不存在", 404)
+    if row["done"]:
+        fail("这轮讲解已经结束了")
+    content = str(body().get("content") or "").strip()
+    if not content:
+        fail("说点什么再发出去")
+    content = content[:4000]
+    entry = db_.execute("SELECT * FROM entries WHERE id=?", (row["entry_id"],)).fetchone()
+    db_.execute(
+        "INSERT INTO explain_messages(id,session_id,role,content,created_at) VALUES(?,?,?,?,?)",
+        ("m_" + uuid.uuid4().hex, session_id, "user", content, core.now_utc()),
+    )
+    turns = row["turns"] + 1
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "chat")
+    history = [{"role": "system", "content": EXPLAIN_SYSTEM + "\n\n你手里的题目信息：\n" + _entry_for_explain(entry)}]
+    for msg in db_.execute("SELECT role,content FROM explain_messages WHERE session_id=? ORDER BY created_at", (session_id,)):
+        history.append({"role": "assistant" if msg["role"] == "assistant" else "user", "content": msg["content"]})
+    finished = turns >= EXPLAIN_TURNS
+    if finished:
+        history.append({"role": "user", "content": "（讲解结束。请按助教要求给出 JSON 评价。）"})
+        history[0] = {"role": "system", "content": EXPLAIN_EVAL}
+    try:
+        text, model, _usage = core.call_ai({**config, "structured_output": finished}, history)
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    reply = text.strip()
+    evaluation = None
+    if finished:
+        evaluation = _parse_eval(reply)
+        db_.execute(
+            "UPDATE explain_sessions SET done=1, score=?, verdict=?, weak_points=?, turns=?, updated_at=? WHERE id=?",
+            (evaluation["score"], evaluation["verdict"][:200],
+             json.dumps(evaluation["weak_points"], ensure_ascii=False), turns, core.now_utc(), session_id),
+        )
+    else:
+        db_.execute("UPDATE explain_sessions SET turns=?, updated_at=? WHERE id=?", (turns, core.now_utc(), session_id))
+    db_.execute(
+        "INSERT INTO explain_messages(id,session_id,role,content,created_at) VALUES(?,?,?,?,?)",
+        ("m_" + uuid.uuid4().hex, session_id, "assistant", reply[:4000], core.now_utc()),
+    )
+    db_.commit()
+    return jsonify(ok=True, reply=reply, turns=turns, finished=finished, evaluation=evaluation,
+                   remaining=max(0, EXPLAIN_TURNS - turns))
+
+
+def _parse_eval(text):
+    cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
+    try:
+        data = json.loads(cleaned)
+    except ValueError:
+        match = re.search(r"\{.*\}", cleaned, re.S)
+        try:
+            data = json.loads(match.group(0)) if match else {}
+        except ValueError:
+            data = {}
+    try:
+        score = max(0, min(100, int(data.get("score", 60))))
+    except (TypeError, ValueError):
+        score = 60
+    weak = data.get("weak_points") or []
+    if isinstance(weak, str):
+        weak = [weak]
+    return {
+        "score": score,
+        "verdict": str(data.get("verdict") or "讲得还不错，再练一次会更稳。"),
+        "weak_points": [str(w)[:120] for w in weak][:5],
+        "next_step": str(data.get("next_step") or ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 拍照批阅（复习后把写的过程拍给 AI）
+# ---------------------------------------------------------------------------
+GRADE_SYSTEM = (
+    "你是严格的助教。用户在做完这道题后上传了自己手写的过程照片，你要批阅并给出明确的分数。\n"
+    "只返回 JSON：{\"score\": 0-100, \"verdict\": \"一句话结论，对/部分对/错\", "
+    "\"error_step\": \"错在第几步，没错写空字符串\", "
+    "\"error_type\": \"概念错误|计算失误|思路错误|审题错误|步骤跳跃|无错误\", "
+    "\"detail\": \"80 字以内的具体点评\", \"correct_solution\": \"如果错了，给出关键正确步骤\"}\n"
+    "不要代码围栏，不要多余文字。"
+)
+
+
+@bp.post("/api/v3/grade")
+def api_grade():
+    db_ = db()
+    data = body()
+    entry_id = str(data.get("entry_id") or "")
+    image = str(data.get("image") or "")
+    if not image.startswith("data:image/"):
+        fail("请上传拍到的解题过程图片")
+    if len(image) > 8_000_000:
+        fail("图片太大，请压缩后再上传")
+    entry = db_.execute("SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, uid())).fetchone()
+    if not entry:
+        fail("题目不存在", 404)
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "ocr")
+    parts = [
+        "科目：" + core.subject_name(uid(), entry["subject"], db_),
+        "原题：" + (entry["problem"] or entry["ocr_text"] or "")[:3000],
+        "标准答案（仅供你批阅参考）：" + (entry["answer"] or "")[:1000],
+        "标准解析：" + (entry["solution"] or "")[:3000],
+        "下面是学生手写过程的照片，请批阅。",
+    ]
+    messages = [
+        {"role": "system", "content": GRADE_SYSTEM},
+        {"role": "user", "content": core.image_content(parts, [image])},
+    ]
+    try:
+        text, model, _usage = core.call_ai({**config, "structured_output": True}, messages,
+                                           config.get("vision_model") or config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    result = _parse_grade(text)
+    db_.execute(
+        "INSERT INTO grade_runs(id,entry_id,user_id,score,verdict,error_type,detail,created_at) VALUES(?,?,?,?,?,?,?,?)",
+        ("g_" + uuid.uuid4().hex, entry_id, uid(), result["score"], result["verdict"][:120],
+         result["error_type"][:20], json.dumps(result, ensure_ascii=False)[:8000], core.now_utc()),
+    )
+    if entry["error_type"] != result["error_type"]:
+        db_.execute("UPDATE entries SET error_type=? WHERE id=?", (result["error_type"][:40], entry_id))
+    db_.commit()
+    return jsonify(ok=True, grade=result)
+
+
+def _parse_grade(text):
+    cleaned = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M).strip()
+    data = {}
+    for candidate in (cleaned, (re.search(r"\{.*\}", cleaned, re.S) or [None])[0] if "{" in cleaned else None):
+        if not candidate:
+            continue
+        try:
+            data = json.loads(candidate)
+            break
+        except ValueError:
+            continue
+    try:
+        score = max(0, min(100, int(data.get("score", 0))))
+    except (TypeError, ValueError):
+        score = 0
+    return {
+        "score": score,
+        "verdict": str(data.get("verdict") or "无法判断")[:120],
+        "error_step": str(data.get("error_step") or "")[:120],
+        "error_type": str(data.get("error_type") or "无错误")[:20],
+        "detail": str(data.get("detail") or "")[:400],
+        "correct_solution": str(data.get("correct_solution") or "")[:2000],
+    }
+
+
+@bp.get("/api/v3/grade/<entry_id>")
+def api_grade_history(entry_id):
+    rows = db().execute(
+        "SELECT * FROM grade_runs WHERE entry_id=? AND user_id=? ORDER BY created_at DESC LIMIT 10",
+        (entry_id, uid()),
+    ).fetchall()
+    return jsonify(runs=[{
+        "id": row["id"], "score": row["score"], "verdict": row["verdict"],
+        "error_type": row["error_type"], "detail": json.loads(row["detail"] or "{}"),
+        "created_at": row["created_at"],
+    } for row in rows])
+
+
+# ---------------------------------------------------------------------------
+# 代码题：在线编译运行 + AI 评分
+# ---------------------------------------------------------------------------
+@bp.post("/api/v3/code/run")
+def api_code_run():
+    data = body()
+    source = str(data.get("source") or "")
+    tests = data.get("tests") or []
+    if not isinstance(tests, list):
+        fail("测试数据格式不正确")
+    try:
+        result = judge.judge_cpp(source, tests)
+    except judge.JudgeUnavailable as exc:
+        fail(str(exc), 503)
+    except ValueError as exc:
+        fail(str(exc))
+    return jsonify(ok=True, **result)
+
+
+@bp.post("/api/v3/code/save")
+def api_code_save():
+    data = body()
+    entry_id = str(data.get("entry_id") or "")
+    entry = db().execute("SELECT id FROM entries WHERE id=? AND user_id=?", (entry_id, uid())).fetchone()
+    if not entry:
+        fail("题目不存在", 404)
+    tests = data.get("tests") or []
+    if not isinstance(tests, list):
+        fail("测试数据格式不正确")
+    db().execute(
+        "UPDATE entries SET code=?, code_tests=?, code_notes=? WHERE id=?",
+        (str(data.get("source") or "")[:60000], json.dumps(tests[:8], ensure_ascii=False),
+         str(data.get("notes") or "")[:2000], entry_id),
+    )
+    db().commit()
+    return jsonify(ok=True)
+
+
+CODE_REVIEW_SYSTEM = (
+    "你是 C++ 程序设计课的助教。用户提交了题目要求和代码，请点评并打分。\n"
+    "只返回 JSON：{\"score\": 0-100, \"verdict\": \"一句话结论\", \"bugs\": [\"问题1\", \"问题2\"], "
+    "\"style\": \"代码风格建议\", \"hint\": \"下一步最该练的点\"}\n"
+    "重点看：逻辑是否正确、边界条件、复杂度、是否用了课程要求的知识点。不要代码围栏。"
+)
+
+
+@bp.post("/api/v3/code/review")
+def api_code_review():
+    db_ = db()
+    data = body()
+    source = str(data.get("source") or "")
+    entry_id = str(data.get("entry_id") or "")
+    if not source.strip():
+        fail("先写点代码再让 AI 看")
+    requirement = str(data.get("requirement") or "")[:4000]
+    if entry_id:
+        entry = db_.execute("SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, uid())).fetchone()
+        if entry:
+            requirement = (entry["problem"] or entry["ocr_text"] or requirement)[:4000]
+    config = core.get_ai_config(db_)
+    core.check_ai_quota(db_, uid(), "solve")
+    messages = [
+        {"role": "system", "content": CODE_REVIEW_SYSTEM},
+        {"role": "user", "content": f"题目要求：\n{requirement or '（未提供）'}\n\n学生代码：\n```cpp\n{source[:20000]}\n```"},
+    ]
+    try:
+        text, model, _usage = core.call_ai({**config, "structured_output": True}, messages, config.get("model"))
+    except core.AIError as exc:
+        fail(str(exc), 502)
+    return jsonify(ok=True, review=_parse_grade(text))
+
+
+@bp.get("/api/v3/code/entry/<entry_id>")
+def api_code_entry(entry_id):
+    row = db().execute("SELECT * FROM entries WHERE id=? AND user_id=?", (entry_id, uid())).fetchone()
+    if not row:
+        fail("题目不存在", 404)
+    return jsonify(
+        ok=True,
+        id=row["id"],
+        title=entry_label(row),
+        problem=(row["problem"] or row["ocr_text"] or ""),
+        code=row["code"] or "",
+        tests=json_list(row["code_tests"]),
+        notes=row["code_notes"] or "",
+    )
+
+
+@bp.get("/api/v3/code/health")
+def api_code_health():
+    return jsonify(ok=True, judge=judge.image_ready(), image=judge.JUDGE_IMAGE)
+
+
+# ---------------------------------------------------------------------------
+# 页面
+# ---------------------------------------------------------------------------
+def _page(template, **extra):
+    user = core.current_user()
+    if not user:
+        return redirect("/login")
+    return render_template(template, version=core.APP_VERSION, username=user["username"], **extra)
+
+
+@bp.get("/exam")
+def page_exam():
+    return _page("exam.html")
+
+
+@bp.get("/duel")
+def page_duel():
+    return _page("duel.html")
+
+
+@bp.get("/code")
+def page_code():
+    return _page("code.html", entry_id=request.args.get("entry", ""))
+
+
+@bp.get("/explain/<entry_id>")
+def page_explain(entry_id):
+    return _page("explain.html", entry_id=entry_id)

@@ -11,6 +11,7 @@
   // ---------------------------------------------------------------------
 
   const SUBJECT_LABEL = { analysis: "工科数学分析", linear: "线性代数" };
+  const KIND_LABEL = { math: "数学", cpp: "程序设计", english: "英语", other: "其他" };
 
   const STATUS_LABEL = {
     unsolved: "不会",
@@ -1033,7 +1034,7 @@
     top.appendChild(
       el("span", {
         class: `chip chip-subject-${entry.subject}`,
-        text: SUBJECT_LABEL[entry.subject] || "数学",
+        text: subjectLabel(entry.subject),
       })
     );
     top.appendChild(
@@ -1530,9 +1531,109 @@
     }
   }
 
+  function subjectLabel(subjectId) {
+    const hit = (state.subjects || []).find((item) => item.id === subjectId);
+    return hit ? hit.name : SUBJECT_LABEL[subjectId] || "数学";
+  }
+
+  function subjectKind(subjectId) {
+    const hit = (state.subjects || []).find((item) => item.id === subjectId);
+    return hit ? hit.kind || "math" : "math";
+  }
+
+  function buildV3Bar(entry) {
+    const bar = el("div", {
+      class: "detail-v3-bar",
+      style: { display: "flex", gap: "8px", flexWrap: "wrap", margin: "10px 0 0" },
+    });
+    const mk = (key, label) =>
+      el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: key } }, label);
+    bar.appendChild(mk("explain", "🎓 我来讲解"));
+    bar.appendChild(mk("grade", "📷 拍照批阅"));
+    if (subjectKind(entry.subject) === "cpp") bar.appendChild(mk("code", "💻 在线写代码"));
+    bar.addEventListener("click", async (event) => {
+      const btn = event.target.closest("[data-v3]");
+      if (!btn) return;
+      event.preventDefault();
+      const action = btn.dataset.v3;
+      if (action === "explain") return window.open(`/explain/${entry.id}`, "_blank");
+      if (action === "code") return window.open(`/code?entry=${entry.id}`, "_blank");
+      if (action === "grade") {
+        btn.disabled = true;
+        try {
+          await gradeEntryPhoto(entry, bar);
+        } catch (err) {
+          toast(err.message || "批阅失败", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      }
+    });
+    return bar;
+  }
+
+  function compressImageFile(file, maxSide = 1500) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("读取图片失败"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("图片格式不支持"));
+        img.onload = () => {
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.86));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function gradeEntryPhoto(entry, bar) {
+    const file = await new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.addEventListener("change", () => resolve(input.files[0] || null));
+      input.click();
+    });
+    if (!file) return;
+    toast("AI 正在批阅你的解题过程…", "info", 6000);
+    const image = await compressImageFile(file);
+    const data = await api("/api/v3/grade", { method: "POST", body: { entry_id: entry.id, image } });
+    renderGradeCard(bar, data.grade);
+  }
+
+  function renderGradeCard(anchor, grade) {
+    const host = anchor.parentElement || anchor;
+    const old = host.querySelector(".v3-grade-card");
+    if (old) old.remove();
+    const card = el("div", { class: "v3-grade-card" });
+    card.style.cssText =
+      "margin:10px 0 0;padding:12px 14px;border-radius:12px;background:#f3f8ff;border:1px solid #d7e7fa";
+    const head = el("div", { style: { display: "flex", alignItems: "baseline", gap: "10px" } });
+    head.appendChild(el("strong", { text: `${grade.score} 分`, style: { fontSize: "20px", color: grade.score >= 80 ? "#2f9e6a" : grade.score >= 60 ? "#d08a2f" : "#cf5f4c" } }));
+    head.appendChild(el("span", { text: grade.verdict || "" }));
+    if (grade.error_type) head.appendChild(el("span", { text: `· ${grade.error_type}` }));
+    card.appendChild(head);
+    if (grade.error_step) card.appendChild(el("p", { text: `错在：${grade.error_step}`, style: { margin: "6px 0 0" } }));
+    if (grade.detail) card.appendChild(el("p", { text: grade.detail, style: { margin: "6px 0 0", color: "#4a6a8a" } }));
+    if (grade.correct_solution) {
+      const sol = el("p", { text: grade.correct_solution, style: { margin: "6px 0 0", color: "#4a6a8a" } });
+      card.appendChild(sol);
+      renderMath(sol);
+    }
+    host.appendChild(card);
+  }
+
   function renderDetail(entry, { revealed = false } = {}) {
     const content = $("#detail-content");
     clear(content);
+    content.dataset.entryId = entry.id;
     const wrap = el("div", { class: "detail-content" });
 
     // Head
@@ -1542,7 +1643,7 @@
     chips.appendChild(
       el("span", {
         class: `chip chip-subject-${entry.subject}`,
-        text: SUBJECT_LABEL[entry.subject] || "数学",
+        text: subjectLabel(entry.subject),
       })
     );
     chips.appendChild(
@@ -1604,6 +1705,9 @@
     chatLauncher.addEventListener("click", openChatDialog);
     aiBar.appendChild(chatLauncher);
     wrap.appendChild(aiBar);
+
+    // v3 quick actions: explain it back, grade a photo of the written work.
+    wrap.appendChild(buildV3Bar(entry));
 
     // Body
     const body = el("div", { class: "detail-body" });
@@ -3155,6 +3259,7 @@
     }
     const entry = state.review.entry;
     const review = state.review;
+    root.dataset.entryId = entry.id;
 
     const head = el("div", { class: "review-head" });
     const headMain = el("div", null);
@@ -3178,7 +3283,7 @@
     chips.appendChild(
       el("span", {
         class: `chip chip-subject-${entry.subject}`,
-        text: SUBJECT_LABEL[entry.subject] || "数学",
+        text: subjectLabel(entry.subject),
       })
     );
     chips.appendChild(
@@ -3279,6 +3384,31 @@
         );
       }
       answerZone.appendChild(results);
+
+      const v3Zone = el("div", {
+        class: "review-v3-zone",
+        style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" },
+      });
+      v3Zone.appendChild(
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: "grade" } }, "📷 拍照给 AI 批阅")
+      );
+      v3Zone.appendChild(
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: "explain" } }, "🎓 我来讲解")
+      );
+      v3Zone.addEventListener("click", async (event) => {
+        const btn = event.target.closest("[data-v3]");
+        if (!btn) return;
+        if (btn.dataset.v3 === "explain") return window.open(`/explain/${entry.id}`, "_blank");
+        btn.disabled = true;
+        try {
+          await gradeEntryPhoto(entry, v3Zone);
+        } catch (err) {
+          toast(err.message || "批阅失败", "error");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      answerZone.appendChild(v3Zone);
 
       const noteWrap = el("div", { class: "review-note" });
       const note = el("textarea", {
@@ -3568,33 +3698,42 @@
     state.subjects.forEach(s => {
       if (s.id === editId) {
         const input = el("input",{type:"text",value:s.name,maxlength:"24",required:true,"aria-label":"修改科目名称",autocomplete:"off"});
+        const kind = el("select",{"aria-label":"科目类型"});
+        Object.entries(KIND_LABEL).forEach(([value,label])=>{
+          const option = el("option",{value,text:value === "cpp" ? "程序设计（可编译判题）" : label});
+          if ((s.kind || "math") === value) option.selected = true;
+          kind.append(option);
+        });
         const save = el("button",{type:"submit",class:"btn btn-primary btn-sm",text:"保存"});
         const cancel = el("button",{type:"button",class:"btn btn-ghost btn-sm",text:"取消"});
-        const form = el("form",{class:"subject-row subject-edit-row"},input,save,cancel);
+        const form = el("form",{class:"subject-row subject-edit-row"},input,kind,save,cancel);
         cancel.addEventListener("click",()=>renderSubjectManager());
         form.addEventListener("submit",event=>{
-          event.preventDefault(); saveSubject(s.id,input.value,form);
+          event.preventDefault(); saveSubject(s.id,input.value,form,kind.value);
         });
         root.append(form); input.focus(); input.select();
       } else {
         const edit = el("button",{type:"button",class:"btn btn-ghost btn-sm",dataset:{subjectEdit:s.id},text:"编辑","aria-label":`编辑${s.name}`});
         edit.addEventListener("click",()=>renderSubjectManager(s.id));
-        root.append(el("div",{class:"subject-row"},el("span",{class:"subject-name",text:s.name}),edit));
+        root.append(el("div",{class:"subject-row"},
+          el("span",{class:"subject-name",text:s.name}),
+          el("span",{class:"chip chip-ghost",text:KIND_LABEL[s.kind || "math"] || "数学"}),
+          edit));
       }
     });
   }
 
-  async function saveSubject(id, name, form) {
+  async function saveSubject(id, name, form, kind) {
     const buttons = $$("button",form);
     buttons.forEach(b=>{b.disabled=true;});
     const message = $("#subject-message");
     message.textContent = "正在保存…";
     message.classList.remove("error");
     try {
-      const result = await api(id ? `/api/subjects/${id}` : "/api/subjects", {method:id ? "PUT" : "POST",body:{name}});
+      const result = await api(id ? `/api/subjects/${id}` : "/api/subjects", {method:id ? "PUT" : "POST",body:{name, kind}});
       renderSubjects(result.subjects);
       if (!id) $("#subject-add-form").reset();
-      message.textContent = id ? "科目名称已更新，已有题目已同步。" : "科目已添加，记题时可以直接选择。";
+      message.textContent = id ? "科目已更新，已有题目已同步。" : "科目已添加，记题时可以直接选择。";
       if (id) $(`[data-subject-edit="${id}"]`).focus();
       else $("#subject-new-name").focus();
       await Promise.all([refreshStats(), loadEntries({silent:true})]);
@@ -3624,7 +3763,9 @@
   function bindSettings() {
     $("#open-settings").addEventListener("click", openSettings);
     $("#subject-add-form").addEventListener("submit",event=>{
-      event.preventDefault(); saveSubject(null,$("#subject-new-name").value,event.currentTarget);
+      event.preventDefault();
+      const kindInput = $("#subject-new-kind");
+      saveSubject(null,$("#subject-new-name").value,event.currentTarget,kindInput ? kindInput.value : "math");
     });
 
     $("#password-form").addEventListener("submit", async (event) => {
@@ -4109,6 +4250,21 @@
     else if (startupAction === "review") startDueReview();
     else if (startupAction === "settings") openSettings();
   }
+
+  // Small bridge for the v3 pages / bookmarklets that need the core helpers.
+  window.MN = {
+    api,
+    toast,
+    state,
+    openDetail,
+    subjectLabel,
+    subjectKind,
+    openChat(entry) {
+      state.detail = entry;
+      openChatDialog();
+    },
+    refresh: () => refreshStats().then(loadEntries),
+  };
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });

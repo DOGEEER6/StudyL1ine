@@ -1,8 +1,24 @@
-"""Per-account subject names and the one-time legacy SQLite migration."""
+"""Per-account subject names, kinds and the one-time legacy SQLite migration."""
 import re
 
 DEFAULT_SUBJECTS = {"analysis": "工科数学分析", "linear": "线性代数"}
 MAX_SUBJECTS = 50
+
+# A subject kind decides the chapter catalog, the editor and the review flow.
+SUBJECT_KINDS = {
+    "math": {"label": "数学", "icon": "∑"},
+    "cpp": {"label": "程序设计", "icon": "{ }"},
+    "english": {"label": "英语", "icon": "A"},
+    "other": {"label": "其他", "icon": "·"},
+}
+DEFAULT_KINDS = {"analysis": "math", "linear": "math"}
+
+SUGGESTIONS = {
+    "math": ["高等数学", "概率论与数理统计", "离散数学", "大学物理"],
+    "cpp": ["C++ 程序设计", "数据结构", "算法设计与分析"],
+    "english": ["大学英语", "英语写作", "雅思阅读"],
+    "other": ["思政", "计算机导论"],
+}
 
 
 def normalize_name(value):
@@ -16,11 +32,36 @@ def normalize_name(value):
     return name
 
 
+def normalize_kind(value, default="math"):
+    if value in (None, ""):
+        return default
+    value = str(value).strip()
+    if value not in SUBJECT_KINDS:
+        raise ValueError("科目类型不正确")
+    return value
+
+
 def list_subjects(db, user_id):
-    subjects = {key: {"id": key, "name": name} for key, name in DEFAULT_SUBJECTS.items()}
-    for row in db.execute("SELECT id,name FROM subjects WHERE user_id=? ORDER BY created_at,id", (user_id,)):
-        subjects[row["id"]] = {"id": row["id"], "name": row["name"]}
+    subjects = {
+        key: {"id": key, "name": name, "kind": DEFAULT_KINDS.get(key, "math")}
+        for key, name in DEFAULT_SUBJECTS.items()
+    }
+    for row in db.execute(
+        "SELECT id,name,kind FROM subjects WHERE user_id=? ORDER BY created_at,id", (user_id,)
+    ):
+        subjects[row["id"]] = {
+            "id": row["id"],
+            "name": row["name"],
+            "kind": row["kind"] or "math",
+        }
     return list(subjects.values())
+
+
+def subject_kind(db, user_id, subject):
+    for item in list_subjects(db, user_id):
+        if item["id"] == subject:
+            return item["kind"]
+    return "math"
 
 
 def expand_legacy_subject_column(db):

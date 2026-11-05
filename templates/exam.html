@@ -1,0 +1,171 @@
+{% extends "v3_base.html" %}
+{% block title %}考试复习计划{% endblock %}
+{% block body %}
+<div class="v3-title">
+  <div>
+    <h1>考试倒计时与复习计划</h1>
+    <p>告诉它考试时间，它按你的复习节奏把待复习的题排到每一天。</p>
+  </div>
+  <button class="v3-btn primary" id="new-exam-btn" type="button">+ 新建考试</button>
+</div>
+
+<section class="v3-card" id="exam-form-card" hidden style="margin-bottom:18px">
+  <form id="exam-form" class="v3-grid" style="gap:10px">
+    <div class="v3-row">
+      <div class="v3-field" style="margin:0"><label>考试名称</label><input class="v3-input" id="f-title" placeholder="例如：高等数学期末" maxlength="40" required></div>
+      <div class="v3-field" style="margin:0"><label>科目</label><select class="v3-select" id="f-subject"></select></div>
+    </div>
+    <div class="v3-row">
+      <div class="v3-field" style="margin:0"><label>考试时间</label><input class="v3-input" id="f-time" type="datetime-local" required></div>
+      <div class="v3-field" style="margin:0"><label>备注（可选）</label><input class="v3-input" id="f-note" placeholder="考场 / 范围" maxlength="200"></div>
+    </div>
+    <div class="v3-row" style="flex:0 0 auto">
+      <button class="v3-btn primary" type="submit" style="flex:0 0 auto">保存</button>
+      <button class="v3-btn ghost" type="button" id="cancel-exam" style="flex:0 0 auto">取消</button>
+    </div>
+  </form>
+</section>
+
+<div class="v3-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);align-items:start" id="exam-layout">
+  <div class="v3-grid" id="exam-list"><div class="v3-empty">正在加载考试…</div></div>
+  <div class="v3-card" id="exam-detail" hidden></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  var detail = document.getElementById('exam-detail');
+  var currentId = '';
+
+  function subjectOptions(select) {
+    select.innerHTML = V3.subjects.map(function (s) {
+      return '<option value="' + V3.esc(s.id) + '">' + V3.esc(s.name) + '</option>';
+    }).join('');
+  }
+
+  function daysBadge(exam) {
+    var d = exam.days_left;
+    if (d < 0) return '<span class="v3-chip">已结束</span>';
+    if (d === 0) return '<span class="v3-chip danger">就是今天</span>';
+    if (d <= 3) return '<span class="v3-chip danger">还剩 ' + d + ' 天</span>';
+    if (d <= 7) return '<span class="v3-chip warn">还剩 ' + d + ' 天</span>';
+    return '<span class="v3-chip">还剩 ' + d + ' 天</span>';
+  }
+
+  async function loadExams() {
+    var box = document.getElementById('exam-list');
+    try {
+      var data = await V3.api('/api/v3/exams');
+      if (!data.exams.length) {
+        box.innerHTML = '<div class="v3-empty">还没有考试安排。<br>点右上角“新建考试”，把期末时间填进去试试。</div>';
+        return;
+      }
+      box.innerHTML = data.exams.map(function (e) {
+        return '<div class="v3-card exam-card" data-id="' + V3.esc(e.id) + '" style="cursor:pointer">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+            '<div><h3>' + V3.esc(e.title) + '</h3>' +
+            '<p class="v3-muted" style="margin:0">' + V3.esc(e.subject_name) + ' · ' + V3.esc(V3.fmtTime(e.exam_at)) + '</p></div>' +
+            '<div class="days' + (e.days_left <= 3 ? ' hot' : '') + '">' + (e.days_left >= 0 ? e.days_left : '—') + '</div>' +
+          '</div>' +
+          '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + daysBadge(e) +
+            (e.plan_days ? '<span class="v3-chip ok">计划 ' + e.plan_done + '/' + e.plan_target + '</span>' : '<span class="v3-chip warn">还没排计划</span>') +
+          '</div></div>';
+      }).join('');
+      box.querySelectorAll('.exam-card').forEach(function (card) {
+        card.addEventListener('click', function () { openExam(card.dataset.id); });
+      });
+      if (currentId) openExam(currentId);
+    } catch (err) {
+      box.innerHTML = '<div class="v3-empty">加载失败：' + V3.esc(err.message) + '</div>';
+    }
+  }
+
+  async function openExam(id) {
+    currentId = id;
+    detail.hidden = false;
+    detail.innerHTML = '<p class="v3-muted">加载计划…</p>';
+    try {
+      var data = await V3.api('/api/v3/exams/' + id);
+      var e = data.exam;
+      var html = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+        '<div><h2 style="margin:0 0 4px;font-size:19px">' + V3.esc(e.title) + '</h2>' +
+        '<p class="v3-muted" style="margin:0">' + V3.esc(e.subject_name) + ' · ' + V3.esc(V3.fmtTime(e.exam_at)) + ' · 还剩 ' + e.days_left + ' 天</p>' +
+        (e.note ? '<p class="v3-muted" style="margin:4px 0 0">' + V3.esc(e.note) + '</p>' : '') + '</div>' +
+        '<button class="v3-btn primary small" id="build-plan" type="button">' + (data.plan.length ? '重排计划' : '生成计划') + '</button></div><hr class="v3-hr">';
+      if (!data.plan.length) {
+        html += '<p class="v3-muted">还没有复习计划。点“生成计划”，它会把这个科目里没掌握的题按复习节奏铺到你考前的每一天。</p>';
+      } else {
+        html += data.plan.map(function (d) {
+          return '<div class="plan-day' + (d.done ? ' done' : '') + '">' +
+            '<h4>' + V3.esc(d.day) + ' · ' + V3.esc(V3.weekday(d.day)) + ' <span class="v3-muted">' + d.entries.length + ' 题</span></h4>' +
+            '<ul>' + d.entries.map(function (it) { return '<li>' + V3.esc(it.title) + '</li>'; }).join('') + '</ul>' +
+            (d.done ? '<span class="v3-chip ok">已完成</span>' :
+              '<button class="v3-btn small" data-done="' + V3.esc(d.day) + '" type="button" style="margin-top:6px">标记完成</button>') +
+            '</div>';
+        }).join('');
+      }
+      detail.innerHTML = html;
+      var btn = document.getElementById('build-plan');
+      if (btn) btn.addEventListener('click', function () { buildPlan(id); });
+      detail.querySelectorAll('[data-done]').forEach(function (b) {
+        b.addEventListener('click', async function () {
+          try {
+            await V3.api('/api/v3/exams/' + id + '/plan/' + b.dataset.done + '/done', { method: 'POST', body: { done: true } });
+            V3.toast('已标记完成');
+            openExam(id); loadExams();
+          } catch (err) { V3.fail(err); }
+        });
+      });
+    } catch (err) {
+      detail.innerHTML = '<p class="v3-empty">' + V3.esc(err.message) + '</p>';
+    }
+  }
+
+  async function buildPlan(id) {
+    try {
+      await V3.api('/api/v3/exams/' + id + '/plan', { method: 'POST', body: {} });
+      V3.toast('计划已生成');
+      openExam(id); loadExams();
+    } catch (err) { V3.fail(err); }
+  }
+
+  document.getElementById('new-exam-btn').addEventListener('click', function () {
+    var card = document.getElementById('exam-form-card');
+    card.hidden = !card.hidden;
+    if (!card.hidden) document.getElementById('f-title').focus();
+  });
+  document.getElementById('cancel-exam').addEventListener('click', function () {
+    document.getElementById('exam-form-card').hidden = true;
+  });
+  document.getElementById('exam-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var payload = {
+      title: document.getElementById('f-title').value.trim(),
+      subject: document.getElementById('f-subject').value,
+      exam_at: document.getElementById('f-time').value,
+      note: document.getElementById('f-note').value.trim()
+    };
+    if (!payload.title) { V3.toast('请填写考试名称', 'error'); return; }
+    if (!payload.exam_at) { V3.toast('请选择考试时间', 'error'); return; }
+    try {
+      await V3.api('/api/v3/exams', { method: 'POST', body: payload });
+      V3.toast('已添加');
+      document.getElementById('exam-form').reset();
+      document.getElementById('exam-form-card').hidden = true;
+      loadExams();
+    } catch (err) { V3.fail(err); }
+  });
+
+  (async function () {
+    try {
+      await V3.boot();
+      subjectOptions(document.getElementById('f-subject'));
+      var t = new Date(Date.now() + 7 * 864e5);
+      t.setMinutes(0);
+      document.getElementById('f-time').value = t.toISOString().slice(0, 16);
+      loadExams();
+    } catch (err) { V3.fail(err); }
+  })();
+})();
+</script>
+{% endblock %}
