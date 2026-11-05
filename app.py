@@ -538,6 +538,23 @@ def force_https():
     return None
 
 
+def _host_key(value: str) -> str:
+    """把 Origin / Host / X-Forwarded-Host 归一成主机名，忽略协议、端口与大小写。
+
+    反向代理（Caddy、Cloudflare、内网端口映射）经常改写端口或 Host，
+    严格比对 netloc 会误伤正常请求；CSRF 令牌仍然是最主要的防线。
+    """
+    value = (value or "").strip().lower()
+    if not value:
+        return ""
+    if "://" not in value:
+        value = "//" + value
+    try:
+        return (urlparse(value).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
 @app.before_request
 def request_gate():
     if not request.path.startswith("/api/"):
@@ -552,11 +569,21 @@ def request_gate():
     if request.method in MUTATING:
         origin = request.headers.get("Origin")
         if origin:
-            try:
-                host = urlparse(origin).netloc
-            except ValueError:
-                host = ""
-            if host != request.host:
+            allowed = {_host_key(request.host)}
+            forwarded_host = request.headers.get("X-Forwarded-Host", "")
+            if forwarded_host:
+                allowed.add(_host_key(forwarded_host.split(",")[0]))
+            forwarded_for_host = request.headers.get("X-Original-Host", "")
+            if forwarded_for_host:
+                allowed.add(_host_key(forwarded_for_host))
+            if _host_key(origin) not in allowed:
+                app.logger.warning(
+                    "origin rejected: origin=%r host=%r x-forwarded-host=%r path=%s",
+                    origin,
+                    request.host,
+                    forwarded_host,
+                    request.path,
+                )
                 return jsonify(error="请求来源校验失败"), 403
         token = request.headers.get("X-CSRF-Token", "")
         expected = session.get("csrf", "")
