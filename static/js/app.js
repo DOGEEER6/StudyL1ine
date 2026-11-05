@@ -1549,25 +1549,37 @@
     const mk = (key, label) =>
       el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: key } }, label);
     bar.appendChild(mk("explain", "🎓 我来讲解"));
-    bar.appendChild(mk("grade", "📷 拍照批阅"));
+    const gradeWrap = el(
+      "label",
+      { class: "btn btn-ghost btn-sm review-upload-btn", dataset: { v3: "grade" } },
+      "📷 拍照批阅"
+    );
+    const gradeInput = el("input", { type: "file", accept: "image/*", class: "review-upload-input" });
+    gradeWrap.appendChild(gradeInput);
+    gradeInput.addEventListener("change", async () => {
+      const picked = gradeInput.files && gradeInput.files[0];
+      gradeInput.value = "";
+      if (!picked) return;
+      gradeWrap.classList.add("is-busy");
+      try {
+        await gradeEntryPhoto(entry, bar, picked);
+      } catch (err) {
+        toast(err.message || "批阅失败", "error");
+      } finally {
+        gradeWrap.classList.remove("is-busy");
+      }
+    });
+    bar.appendChild(gradeWrap);
     if (subjectKind(entry.subject) === "cpp") bar.appendChild(mk("code", "💻 在线写代码"));
     bar.addEventListener("click", async (event) => {
       const btn = event.target.closest("[data-v3]");
       if (!btn) return;
-      event.preventDefault();
       const action = btn.dataset.v3;
+      // label 自带文件选择行为，不要 preventDefault
+      if (action === "grade") return;
+      event.preventDefault();
       if (action === "explain") return window.open(`/explain/${entry.id}`, "_blank");
       if (action === "code") return window.open(`/code?entry=${entry.id}`, "_blank");
-      if (action === "grade") {
-        btn.disabled = true;
-        try {
-          await gradeEntryPhoto(entry, bar);
-        } catch (err) {
-          toast(err.message || "批阅失败", "error");
-        } finally {
-          btn.disabled = false;
-        }
-      }
     });
     return bar;
   }
@@ -1593,15 +1605,22 @@
     });
   }
 
-  async function gradeEntryPhoto(entry, bar) {
-    const file = await new Promise((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.addEventListener("change", () => resolve(input.files[0] || null));
-      input.click();
-    });
-    if (!file) return;
+  async function gradeEntryPhoto(entry, bar, picked) {
+    let file = picked || null;
+    if (!file) {
+      file = await new Promise((resolve) => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.addEventListener("change", () => resolve(input.files[0] || null));
+        document.body.appendChild(input);
+        input.click();
+        window.setTimeout(() => {
+          if (!input.files || !input.files.length) resolve(null);
+        }, 60000);
+      });
+      if (!file) return;
+    }
     const progress = startGradeProgress(bar, "正在压缩图片…");
     try {
       const image = await compressImageFile(file);
@@ -3426,14 +3445,21 @@
       const gradeBox = el("div", { class: "review-grade-box" });
       const gradeAnchor = el("div");
       gradeBox.appendChild(gradeAnchor);
-      const uploadBtn = el("button", { class: "btn btn-primary", type: "button" }, "📷 先上传我的解答，AI 批阅");
-      uploadBtn.addEventListener("click", async () => {
+      const uploadBtn = el("label", { class: "btn btn-primary review-upload-btn" }, "📷 先上传我的解答，AI 批阅");
+      const uploadInput = el("input", { type: "file", accept: "image/*", class: "review-upload-input" });
+      uploadBtn.appendChild(uploadInput);
+      uploadInput.addEventListener("change", async () => {
+        const picked = uploadInput.files && uploadInput.files[0];
+        uploadInput.value = "";
+        if (!picked) return;
+        uploadBtn.classList.add("is-busy");
         uploadBtn.disabled = true;
         try {
-          await gradeEntryPhoto(entry, gradeAnchor);
+          await gradeEntryPhoto(entry, gradeAnchor, picked);
         } catch (err) {
           toast(err.message || "批阅失败", "error");
         } finally {
+          uploadBtn.classList.remove("is-busy");
           uploadBtn.disabled = false;
         }
       });
