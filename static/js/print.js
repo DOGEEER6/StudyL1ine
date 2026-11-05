@@ -179,7 +179,7 @@
 
   function buildFooter(entries) {
     const foot = el("footer", { class: "sheet-foot" });
-    foot.appendChild(el("span", { text: `StudyL1ne · math.dogeeer.cn · ${todayText()}` }));
+    foot.appendChild(el("span", { text: `StudyL1ne v3.0.0 · study.dogeeer.cn · ${todayText()} · © 2026 StudyL1ne` }));
     foot.appendChild(el("span", { text: `共 ${entries.length} 道 · ${withSolutions ? "含解答" : "无解答"}` }));
     return foot;
   }

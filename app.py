@@ -1323,7 +1323,7 @@ def call_ai(config: dict, messages: list[dict], model: str | None = None) -> tup
                 "Authorization": f"Bearer {key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": "math-notes/1.1 (+https://math.dogeeer.cn)",
+                "User-Agent": "studyl1ne/3.0 (+https://study.dogeeer.cn)",
             },
             method="POST",
         )
