@@ -4100,3 +4100,8 @@ body.error-page {
     scroll-behavior: auto !important;
   }
 }
+
+/* v3 quick links (learning page) */
+.v3-quicklinks { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+.v3-quicklink { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.22); color: #1d4ed8; font-size: 13px; font-weight: 600; text-decoration: none; }
+.v3-quicklink:hover { background: rgba(59, 130, 246, 0.14); }
