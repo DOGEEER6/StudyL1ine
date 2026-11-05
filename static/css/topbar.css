@@ -357,3 +357,44 @@ body.admin-page .topbar {
     font-size: 13.5px;
   }
 }
+
+/* 大屏：导航绝对居中，保证首页与其它页面菜单文字位置完全一致 */
+@media (min-width: 1100px) {
+  .topbar {
+    position: relative;
+  }
+
+  .topbar-nav {
+    position: absolute;  /* 大屏导航绝对居中 */
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    flex: 0 0 auto;
+    justify-content: center;
+  }
+}
+
+/* 统一内边距与品牌字体：首页曾用 app.css 的 serif 16px 与 20px 内边距，和 v3 页面不一致 */
+body .topbar {
+  padding-inline: 16px;
+  gap: 8px;
+}
+
+body .topbar .brand-text strong {
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+body .topbar .brand-text small {
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+/* 全站统一正文排版：以 IDE 等 v3 页面为准（PingFang 15px），避免首页/学习状况字形宽度不同 */
+html body,
+html body.app-page,
+html body.learning-page {
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+}
