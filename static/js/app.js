@@ -1552,7 +1552,7 @@
     const gradeWrap = el(
       "label",
       { class: "btn btn-ghost btn-sm review-upload-btn", dataset: { v3: "grade" } },
-      "📷 拍照批阅"
+      "拍照批阅"
     );
     const gradeInput = el("input", { type: "file", accept: "image/*", class: "review-upload-input" });
     gradeWrap.appendChild(gradeInput);
@@ -3392,7 +3392,7 @@
       const gradeBox = el("div", { class: "review-grade-box" });
       const gradeAnchor = el("div");
       gradeBox.appendChild(gradeAnchor);
-      const uploadBtn = el("label", { class: "btn btn-primary review-upload-btn" }, "📷 先上传我的解答，AI 批阅");
+      const uploadBtn = el("label", { class: "btn btn-primary review-upload-btn" }, "先上传我的解答，AI 批阅");
       const uploadInput = el("input", { type: "file", accept: "image/*", class: "review-upload-input" });
       uploadBtn.appendChild(uploadInput);
       uploadInput.addEventListener("change", async () => {
@@ -3489,7 +3489,7 @@
         style: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px" },
       });
       v3Zone.appendChild(
-        el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: "grade" } }, "📷 拍照给 AI 批阅")
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: "grade" } }, "拍照给 AI 批阅")
       );
       v3Zone.appendChild(
         el("button", { class: "btn btn-ghost btn-sm", type: "button", dataset: { v3: "explain" } }, "🎓 我来讲解")

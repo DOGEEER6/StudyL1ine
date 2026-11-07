@@ -181,7 +181,7 @@
     // 揭晓前：先上传解答批阅
     if (!state.revealed) {
       var upload = el("label", { class: "v3-btn rv-upload", for: "rv-file" }, [
-        document.createTextNode("📷 先上传我的解答，AI 批阅")
+        document.createTextNode("先上传我的解答，AI 批阅")
       ]);
       var file = el("input", { type: "file", id: "rv-file", accept: "image/*" });
       file.addEventListener("change", function () {
